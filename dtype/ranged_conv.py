@@ -5,7 +5,7 @@ from skimage.exposure import rescale_intensity
 
 #%%
 
-def ranged_conversion(
+def ranged_conv(
         img, 
         intensity_range=(5,95), 
         spread=1.2, 
