@@ -30,7 +30,7 @@ def filt(img, kernel_size=3, method='mean', iterations=1):
     Returns
     -------  
     img : ndarray
-        Filtered image.
+        Processed image.
     
     """
     
@@ -50,7 +50,7 @@ def filt(img, kernel_size=3, method='mean', iterations=1):
     if kernel_size % 2 == 0:
         kernel_size += 1 
 
-    # Pad img border with NaNs
+    # Pad img with NaNs
     pad = kernel_size//2
     img = np.pad(img, pad_width=pad, constant_values=np.nan)
 

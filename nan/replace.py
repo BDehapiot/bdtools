@@ -60,7 +60,7 @@ def replace(img, kernel_size=3, method='mean', mask=None):
     else:
         mask = mask.astype('bool')
     
-    # Pad img and mask border with NaNs and False
+    # Pad img and mask with NaNs and False
     pad = kernel_size//2
     img = np.pad(img, pad_width=pad, constant_values=np.nan)
     mask = np.pad(mask, pad_width=pad, constant_values=False)
