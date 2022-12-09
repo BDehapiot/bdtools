@@ -8,7 +8,7 @@ from skimage.exposure import rescale_intensity
 def ranged_conversion(
         img, 
         intensity_range=(5,95), 
-        spread=1.2, 
+        spread=3, 
         dtype='float'
         ):
 
@@ -38,8 +38,9 @@ def ranged_conversion(
     int_min = np.percentile(img, intensity_range[0])
     int_max = np.percentile(img, intensity_range[1])
     int_range = int_max-int_min
-    int_min -= int_range - (int_range*spread)/2
-    int_max += int_range - (int_range*spread)/2
+    int_min -= (int_range*spread-int_range)/2
+    int_max += (int_range*spread-int_range)/2
+    if int_min < np.min(img): int_min = np.min(img)
     if int_max > np.max(img): int_max = np.max(img)
     
     # Rescale image
