@@ -6,7 +6,7 @@ from skimage.morphology import disk
 
 #%% Function
 
-def filt(img, kernel_size=3, method='mean', iterations=1):
+def nanfilt(img, kernel_size=3, method='mean', iterations=1):
     
     """ 
     Filter image ignoring NaNs.
