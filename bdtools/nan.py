@@ -55,11 +55,8 @@ def nanfilt(img, kernel_size=3, method='mean', iterations=1):
     img = np.pad(img, pad_width=pad, constant_values=np.nan)
 
     # Define nan_disk
-    if kernel_size == 3:
-        nan_disk = square(kernel_size, dtype=float)
-    else:
-        nan_disk = disk(pad, dtype=float)
-        nan_disk[nan_disk == 0] = np.nan
+    nan_disk = disk(pad, dtype=float)
+    nan_disk[nan_disk == 0] = np.nan
 
     # Find non-NaNs coordinates
     idx = np.where(~np.isnan(img) == True)
@@ -75,7 +72,6 @@ def nanfilt(img, kernel_size=3, method='mean', iterations=1):
     for _ in range(iterations):
         all_kernels = img[kernel_y,kernel_x]*nan_disk
         all_kernels = filt[method](all_kernels, axis=(1, 2))
-        all_kernels[np.isnan(all_kernels)] = filt[method](img) # to end while loop
         img[idx] = all_kernels
 
     # Unpad img
@@ -143,8 +139,11 @@ def nanreplace(img, kernel_size=3, method='mean', mask=None):
     mask = np.pad(mask, pad_width=pad, constant_values=False)
     
     # Define nan_disk
-    nan_disk = disk(pad, dtype=float)
-    nan_disk[nan_disk == 0] = np.nan
+    if kernel_size == 3:
+        nan_disk = square(kernel_size, dtype=float)
+    else:
+        nan_disk = disk(pad, dtype=float)
+        nan_disk[nan_disk == 0] = np.nan
     
     while np.isnan(img[mask==True]).any():
     
@@ -163,6 +162,7 @@ def nanreplace(img, kernel_size=3, method='mean', mask=None):
         # Filter img
         all_kernels = img[kernel_y,kernel_x]*nan_disk
         all_kernels = filt[method](all_kernels, axis=(1, 2))
+        all_kernels[np.isnan(all_kernels)] = filt[method](img) # to end while loop
         img[idx] = all_kernels
             
     # Unpad img
