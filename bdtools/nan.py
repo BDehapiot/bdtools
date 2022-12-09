@@ -147,6 +147,9 @@ def nanreplace(img, kernel_size=3, method='mean', mask=None):
     
     while np.isnan(img[mask==True]).any():
     
+        # Counting the NaNs to be replaced
+        nan_count = np.count_nonzero(np.isnan(img[mask==True]))    
+    
         # Find NaNs coordinates (outside mask)   
         nan_mask = np.isnan(img) & mask == True
         nan_mask = nan_mask ^ binary_erosion(nan_mask, square(kernel_size))
@@ -162,8 +165,12 @@ def nanreplace(img, kernel_size=3, method='mean', mask=None):
         # Filter img
         all_kernels = img[kernel_y,kernel_x]*nan_disk
         all_kernels = filt[method](all_kernels, axis=(1, 2))
-        all_kernels[np.isnan(all_kernels)] = filt[method](img) # to end while loop
         img[idx] = all_kernels
+        
+        # Break while loop if NaNs can't be replaced
+        if nan_count == np.count_nonzero(np.isnan(img[mask==True])):
+            warnings.warn('Cannot replace all NaNs, please increase kernel size')
+            break
             
     # Unpad img
     img = img[pad:-pad,pad:-pad]
