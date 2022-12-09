@@ -146,7 +146,7 @@ def nanreplace(img, kernel_size=3, method='mean', mask=None):
     
         # Find NaNs coordinates (outside mask)   
         nan_mask = np.isnan(img) & mask == True
-        nan_mask = nan_mask ^ binary_erosion(nan_mask, square(1))
+        nan_mask = nan_mask ^ binary_erosion(nan_mask, square(kernel_size))
         idx = np.where(nan_mask == True)
         idx_y = idx[0]; idx_x = idx[1]
     
