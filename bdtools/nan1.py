@@ -153,11 +153,11 @@ stackfilt_name = 'filt.tif'
 
 # -----------------------------------------------------------------------------
 
-kernel_size = 3
+kernel_size = 5
 img = io.imread(Path('../data', stack_name))
 mask = io.imread(Path('../data', mask_name))
 method = 'mean'
-iterations = 3
+iterations = 5
 
 #%%
 
@@ -176,6 +176,9 @@ filt = {
     'max': np.nanmax, 
     'min': np.nanmin,
     }
+
+# Convert img to float
+img = img.astype(float)
 
 # Extract kernel_size variables
 if isinstance(kernel_size, int):
