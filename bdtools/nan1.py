@@ -147,15 +147,15 @@ from skimage.draw import ellipsoid
 
 # -----------------------------------------------------------------------------
 
-stack_name = 'noisy-nan_3d.tif'
-mask_name = 'mask_3d.tif'
+stack_name = 'noise_3d_256.tif'
+mask_name = 'mask_3d_256.tif'
 stackfilt_name = 'filt.tif'
 
 # -----------------------------------------------------------------------------
 
 kernel_size = 3
-img = io.imread(Path('../data', stack_name))[0:5,...]
-mask = io.imread(Path('../data', mask_name))[0,...]
+img = io.imread(Path('../data', stack_name))
+mask = io.imread(Path('../data', mask_name))
 method = 'mean'
 iterations = 3
 
