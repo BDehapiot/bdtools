@@ -8,4 +8,6 @@ dependencies:
   - numpy=1.23
   - scipy
   - scikit-image
+  - matplotlib-base
+  - joblib
   - numba
