@@ -462,9 +462,14 @@ def nanreplace(
 
 # # -----------------------------------------------------------------------------
 
-# img_name = 'noise+nan(holes)_3d_1024.tif'
-# mask_name = 'mask_3d_1024.tif'
-# imgfilt_name = 'filt.tif'
+# # img_name = 'noise+nan(holes)_3d_1024.tif'
+# # mask_name = 'mask_3d_1024.tif'
+
+# # img_name = 'noise+nan_3d_256.tif'
+# # mask_name = 'mask_3d_256.tif'
+
+# img_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8_vecU.tif'
+# mask_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8_vecMask.tif'
 
 # # -----------------------------------------------------------------------------
 
@@ -474,45 +479,40 @@ def nanreplace(
 # # -----------------------------------------------------------------------------
 
 # start = time.time()
-# print('nanfilt')
+# print('nanreplace')
 
-# img_filt = nanfilt(
+# img_filt = nanreplace(
 #     img,
-#     mask=None,
-#     kernel_size=(3,9,9),
+#     mask=mask,
+#     kernel_size=(1,3,3),
 #     kernel_shape='cuboid',
 #     filt_method='mean',
-#     iterations=3,
-#     parallel=True    
+#     iterations='inf',
+#     parallel=False    
 #     )
 
 # end = time.time()
 # print(f'  {(end-start):5.3f} s') 
-
-# # Save img_filt    
-# io.imsave(
-#     Path('../data/nan', img_name.replace('.tif', '_filt.tif')),
-#     img_filt.astype('float32'),
-#     check_contrast=False,
-#     )
 
 # # -----------------------------------------------------------------------------
 
 # start = time.time()
 # print('nanfilt')
 
-# img_filt = nanreplace(
+# img_filt = nanfilt(
 #     img,
-#     mask=None,
-#     kernel_size=3,
-#     kernel_shape='cuboid',
+#     mask=mask,
+#     kernel_size=(7,7,7),
+#     kernel_shape='ellipsoid',
 #     filt_method='mean',
-#     iterations=20,
-#     parallel=True    
+#     iterations=3,
+#     parallel=False  
 #     )
 
 # end = time.time()
 # print(f'  {(end-start):5.3f} s') 
+
+# # -----------------------------------------------------------------------------
 
 # # Save img_filt    
 # io.imsave(

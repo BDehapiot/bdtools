@@ -170,9 +170,9 @@ mask = io.imread(Path('../data/piv', mask_name))
 
 # -----------------------------------------------------------------------------
 
-intSize = 24 # size of interrogation window (pixels)
-srcSize = 48 # size of search window (pixels)
-binning = 1 # reduce image size to speed up computation (1, 2, 4, 8...)
+intSize = 36 # size of interrogation window (pixels)
+srcSize = 72 # size of search window (pixels)
+binning = 2 # reduce image size to speed up computation (1, 2, 4, 8...)
 maskCutOff = 1 # mask out interrogation windows (???) 
 parallel = True
 
@@ -203,15 +203,18 @@ vecV = output_dict['vecV']
 
 # -----------------------------------------------------------------------------
 
-outTresh = 1
-kernel_size = (1,3,3)
-kernel_shape = 'cuboid'
-filt_method = 'median'
-iterations = 1
-parallel = True
+outTresh = 1.5
+kernel_size = (3,3,3)
+kernel_shape = 'ellipsoid'
+filt_method = 'mean'
+iterations = 3
+parallel = False
 
 # -----------------------------------------------------------------------------
    
+start = time.time()
+print('filtpiv')
+
 # Extract nanmask ()
 nanmask = ~np.isnan(vecU)
 
@@ -264,19 +267,55 @@ vecV = nanfilt(
 
 norm = np.hypot(vecU, vecV)
 
-#%% Display (vector field)
+end = time.time()
+print(f'  {(end-start):5.3f} s') 
 
-# import matplotlib.pyplot as plt
+# -----------------------------------------------------------------------------
 
-# # -----------------------------------------------------------------------------
+# start = time.time()
+# print('filtpiv')
 
-# t = 40
-# u = vecU[t,...]
-# v = vecV[t,...]
-# norm = np.hypot(u, v)
-# fig, ax = plt.subplots(figsize=(12, 12))
-# ax.quiver(u, v, norm)
+# outTresh = 1.5
+    
+# for t, (u, v) in enumerate(zip(vecU, vecV)):
+    
+#     nanmask = ~np.isnan(u)
+#     norm = np.hypot(u, v)
+#     z_u = np.abs(zscore(u, axis=None, nan_policy='omit'))
+#     z_v = np.abs(zscore(v, axis=None, nan_policy='omit'))
+#     u[(z_u>outTresh) | (z_v>outTresh)] = np.nan
+#     v[(z_u>outTresh) | (z_v>outTresh)] = np.nan
+    
+#     u = nanreplace(
+#         u, 
+#         kernel_size=3, 
+#         method='mean', 
+#         mask=nanmask,
+#         )
 
+#     v = nanreplace(
+#         v, 
+#         kernel_size=3, 
+#         method='mean', 
+#         mask=nanmask,
+#         )
+    
+#     vecU[t,...] = nanfilt(
+#         u, 
+#         kernel_size=3, 
+#         method='mean', 
+#         iterations=3,
+#         )
+
+#     vecV[t,...] = nanfilt(
+#         v, 
+#         kernel_size=3, 
+#         method='mean', 
+#         iterations=3,
+#         )   
+
+# end = time.time()
+# print(f'  {(end-start):5.3f} s') 
 
 #%% Save vecU & vecV 
 
@@ -293,7 +332,26 @@ io.imsave(
     )
 
 io.imsave(
-    Path('../data/piv', stack_name.replace('.tif', '_norm.tif')),
+    Path('../data/piv', stack_name.replace('.tif', '_vecNorm.tif')),
     norm.astype('float32'),
     check_contrast=False,
     )
+
+io.imsave(
+    Path('../data/piv', stack_name.replace('.tif', '_vecMask.tif')),
+    nanmask.astype('uint8')*255,
+    check_contrast=False,
+    )
+
+#%% Display (vector field)
+
+# import matplotlib.pyplot as plt
+
+# # -----------------------------------------------------------------------------
+
+# t = 40
+# u = vecU[t,...]
+# v = vecV[t,...]
+# norm = np.hypot(u, v)
+# fig, ax = plt.subplots(figsize=(6, 6), dpi=300)
+# ax.quiver(u, v, norm)
