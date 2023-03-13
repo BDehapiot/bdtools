@@ -7,7 +7,7 @@ from joblib import Parallel, delayed
 from skimage.transform import rescale
 from bdtools.nan import nanreplace, nanfilt
 
-#%%
+#%% Function: getpiv 
 
 def getpiv(
         stack,
@@ -58,7 +58,7 @@ def getpiv(
         
         return vecU, vecV
         
-    # Run ---------------------------------------------------------------------
+    # Execute -----------------------------------------------------------------
 
     # Mask operations
     if mask is None:
@@ -150,6 +150,84 @@ def getpiv(
         
     return output_dict
 
+#%% Function: filtpiv 
+
+def filtpiv(
+        output_dict,
+        outlier_cutoff=1.5,
+        spatial_smooth=3,
+        temporal_smooth=3,
+        iterations_smooth=1,
+        parallel=False,
+        ):
+    
+    # Execute -----------------------------------------------------------------
+
+    # Extract data & parameters
+    vecU = output_dict['vecU']
+    vecV = output_dict['vecV']
+    kernel_size = (temporal_smooth,spatial_smooth,spatial_smooth)
+
+    # Extract nanmask 
+    nanmask = ~np.isnan(vecU)
+
+    # Replace outliers with NaNs
+    for u, v in zip(vecU, vecV):
+        z_u = np.abs(zscore(u, axis=None, nan_policy='omit'))
+        z_v = np.abs(zscore(v, axis=None, nan_policy='omit'))
+        u[(z_u>outlier_cutoff) | (z_v>outlier_cutoff)] = np.nan
+        v[(z_u>outlier_cutoff) | (z_v>outlier_cutoff)] = np.nan
+
+    vecU = nanreplace(
+        vecU, 
+        mask=nanmask,
+        kernel_size=kernel_size,
+        kernel_shape='ellipsoid',
+        filt_method='mean', 
+        iterations='inf',
+        parallel=parallel,
+        )
+
+    vecU = nanfilt(
+        vecU, 
+        mask=nanmask,
+        kernel_size=kernel_size,
+        kernel_shape='ellipsoid',
+        filt_method='mean', 
+        iterations=iterations_smooth,
+        parallel=parallel,
+        )
+
+    vecV = nanreplace(
+        vecV, 
+        mask=nanmask,
+        kernel_size=kernel_size,
+        kernel_shape='ellipsoid',
+        filt_method='mean', 
+        iterations='inf',
+        parallel=parallel,
+        )
+
+    vecV = nanfilt(
+        vecV, 
+        mask=nanmask,
+        kernel_size=kernel_size,
+        kernel_shape='ellipsoid',
+        filt_method='mean', 
+        iterations=iterations_smooth,
+        parallel=parallel,
+        )
+    
+    # Updating output dictionary 
+    output_dict['vecU'] = vecU,
+    output_dict['vecV'] = vecV,
+    output_dict['outlier_cutoff'] = outlier_cutoff,
+    output_dict['spatial_smooth'] = spatial_smooth,
+    output_dict['temporal_smooth'] = temporal_smooth,
+    output_dict['iterations_smooth'] = iterations_smooth,
+    
+    return output_dict
+        
 #%% Test
 
 import time
@@ -168,13 +246,17 @@ stack = io.imread(Path('../data/piv', stack_name))
 mask = io.imread(Path('../data/piv', mask_name))
 # mask = None
 
-# -----------------------------------------------------------------------------
-
+# getpiv parameters
 intSize = 36 # size of interrogation window (pixels)
 srcSize = 72 # size of search window (pixels)
-binning = 2 # reduce image size to speed up computation (1, 2, 4, 8...)
+binning = 1 # reduce image size to speed up computation (1, 2, 4, 8...)
 maskCutOff = 1 # mask out interrogation windows (???) 
-parallel = True
+
+# filtpiv parameters
+outlier_cutoff = 1.5 # remove outliers from vector field
+spatial_smooth = 3 # spatial smoothening of vector field
+temporal_smooth = 3 # temporal smoothening of vector field
+iterations_smooth = 3 # iterations of smoothening process
 
 # -----------------------------------------------------------------------------
 
@@ -188,136 +270,34 @@ output_dict = getpiv(
     binning=binning,
     mask=mask,
     maskCutOff=maskCutOff,
-    parallel=True
+    parallel=True,
     )
 
 end = time.time()
 print(f'  {(end-start):5.3f} s') 
 
-#%% 
-
 # -----------------------------------------------------------------------------
 
-vecU = output_dict['vecU']
-vecV = output_dict['vecV']
-
-# -----------------------------------------------------------------------------
-
-outTresh = 1.5
-kernel_size = (3,3,3)
-kernel_shape = 'ellipsoid'
-filt_method = 'mean'
-iterations = 3
-parallel = False
-
-# -----------------------------------------------------------------------------
-   
 start = time.time()
 print('filtpiv')
-
-# Extract nanmask ()
-nanmask = ~np.isnan(vecU)
-
-# Replace outliers with NaNs
-for u, v in zip(vecU, vecV):
-    z_u = np.abs(zscore(u, axis=None, nan_policy='omit'))
-    z_v = np.abs(zscore(v, axis=None, nan_policy='omit'))
-    u[(z_u>outTresh) | (z_v>outTresh)] = np.nan
-    v[(z_u>outTresh) | (z_v>outTresh)] = np.nan
-
-vecU = nanreplace(
-    vecU, 
-    mask=nanmask,
-    kernel_size=kernel_size,
-    kernel_shape=kernel_shape,
-    filt_method=filt_method, 
-    iterations='inf',
-    parallel=parallel,
+        
+output_dict = filtpiv(
+    output_dict,
+    outlier_cutoff=outlier_cutoff,
+    spatial_smooth=spatial_smooth,
+    temporal_smooth=temporal_smooth,
+    iterations_smooth=iterations_smooth,
+    parallel=False,
     )
-
-vecU = nanfilt(
-    vecU, 
-    mask=nanmask,
-    kernel_size=kernel_size,
-    kernel_shape=kernel_shape,
-    filt_method=filt_method, 
-    iterations=iterations,
-    parallel=parallel,
-    )
-
-vecV = nanreplace(
-    vecV, 
-    mask=nanmask,
-    kernel_size=kernel_size,
-    kernel_shape=kernel_shape,
-    filt_method=filt_method, 
-    iterations='inf',
-    parallel=parallel,
-    )
-
-vecV = nanfilt(
-    vecV, 
-    mask=nanmask,
-    kernel_size=kernel_size,
-    kernel_shape=kernel_shape,
-    filt_method=filt_method, 
-    iterations=iterations,
-    parallel=parallel,
-    )
-
-norm = np.hypot(vecU, vecV)
 
 end = time.time()
 print(f'  {(end-start):5.3f} s') 
 
-# -----------------------------------------------------------------------------
-
-# start = time.time()
-# print('filtpiv')
-
-# outTresh = 1.5
-    
-# for t, (u, v) in enumerate(zip(vecU, vecV)):
-    
-#     nanmask = ~np.isnan(u)
-#     norm = np.hypot(u, v)
-#     z_u = np.abs(zscore(u, axis=None, nan_policy='omit'))
-#     z_v = np.abs(zscore(v, axis=None, nan_policy='omit'))
-#     u[(z_u>outTresh) | (z_v>outTresh)] = np.nan
-#     v[(z_u>outTresh) | (z_v>outTresh)] = np.nan
-    
-#     u = nanreplace(
-#         u, 
-#         kernel_size=3, 
-#         method='mean', 
-#         mask=nanmask,
-#         )
-
-#     v = nanreplace(
-#         v, 
-#         kernel_size=3, 
-#         method='mean', 
-#         mask=nanmask,
-#         )
-    
-#     vecU[t,...] = nanfilt(
-#         u, 
-#         kernel_size=3, 
-#         method='mean', 
-#         iterations=3,
-#         )
-
-#     vecV[t,...] = nanfilt(
-#         v, 
-#         kernel_size=3, 
-#         method='mean', 
-#         iterations=3,
-#         )   
-
-# end = time.time()
-# print(f'  {(end-start):5.3f} s') 
-
 #%% Save vecU & vecV 
+
+# Extract data
+vecU = output_dict['vecU']
+vecV = output_dict['vecV']
 
 io.imsave(
     Path('../data/piv', stack_name.replace('.tif', '_vecU.tif')),
@@ -331,27 +311,72 @@ io.imsave(
     check_contrast=False,
     )
 
-io.imsave(
-    Path('../data/piv', stack_name.replace('.tif', '_vecNorm.tif')),
-    norm.astype('float32'),
-    check_contrast=False,
-    )
+#%% dispiv
 
-io.imsave(
-    Path('../data/piv', stack_name.replace('.tif', '_vecMask.tif')),
-    nanmask.astype('uint8')*255,
-    check_contrast=False,
-    )
+import matplotlib.pyplot as plt
 
-#%% Display (vector field)
+# -----------------------------------------------------------------------------
 
-# import matplotlib.pyplot as plt
+t = 40
 
 # # -----------------------------------------------------------------------------
 
-# t = 40
-# u = vecU[t,...]
-# v = vecV[t,...]
-# norm = np.hypot(u, v)
-# fig, ax = plt.subplots(figsize=(6, 6), dpi=300)
-# ax.quiver(u, v, norm)
+# Extract data
+vecU = output_dict['vecU']
+vecV = output_dict['vecV']
+intYi = output_dict['intYi']
+intXi = output_dict['intXi']
+
+# -----------------------------------------------------------------------------
+
+# Get vector field xy coordinates
+xCoords, yCoords = np.meshgrid(intXi+intSize//2, intYi+intSize//2)
+
+# Get vector field norm.
+norm = np.hypot(vecU, vecV)
+
+# # Plot quiver
+# fig, ax = plt.subplots()
+# ax.quiver(xCoords, yCoords, vecU[t,...], vecV[t,...], pivot='mid')
+# plt.ylim([0, stack.shape[1]])
+# plt.xlim([0, stack.shape[2]])
+
+# ax.set_axis_off()
+# fig.subplots_adjust(top=1, bottom=0, right=1, left=0, wspace=0, hspace=0)
+
+# dpi = 300  # adjust this as needed
+# fig.set_dpi(dpi)
+# height, width = stack.shape[1], stack.shape[2] # adjust these as needed
+# fig.set_size_inches(width/dpi, height/dpi)
+
+# # -----------------------------------------------------------------------------
+
+# fig.canvas.draw()
+# w, h = fig.canvas.get_width_height()
+# buf = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8)
+# buf = buf.reshape((h, w, 3))
+# vecArrows = buf[:,:,0]
+
+# #%% 
+
+# from skimage.morphology import dilation
+# from skimage.morphology import disk
+
+# intYi = output_dict['intYi']
+# intXi = output_dict['intXi']
+
+# vecROI = np.zeros_like(stack[0,...])
+# for y, iYi in enumerate(intYi):
+#     for x, iXi in enumerate(intXi):
+        
+#         vecROI[iYi+intSize//2,iXi+intSize//2] = 255
+        
+# vecROI = dilation(vecROI, footprint=disk(3))
+
+# # -----------------------------------------------------------------------------
+
+# io.imsave(
+#     Path('../data/piv', stack_name.replace('.tif', '_vecROI.tif')),
+#     vecROI + np.invert(vecArrows),
+#     check_contrast=False,
+#     )
