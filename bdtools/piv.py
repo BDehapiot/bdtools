@@ -219,12 +219,12 @@ def filtpiv(
         )
     
     # Updating output dictionary 
-    output_dict['vecU'] = vecU,
-    output_dict['vecV'] = vecV,
-    output_dict['outlier_cutoff'] = outlier_cutoff,
-    output_dict['spatial_smooth'] = spatial_smooth,
-    output_dict['temporal_smooth'] = temporal_smooth,
-    output_dict['iterations_smooth'] = iterations_smooth,
+    output_dict.update({'vecU': vecU})
+    output_dict.update({'vecV': vecV})
+    output_dict.update({'outlier_cutoff': outlier_cutoff})
+    output_dict.update({'spatial_smooth': spatial_smooth})
+    output_dict.update({'temporal_smooth': temporal_smooth})
+    output_dict.update({'iterations_smooth': iterations_smooth})
     
     return output_dict
         
@@ -318,8 +318,14 @@ import matplotlib.pyplot as plt
 # -----------------------------------------------------------------------------
 
 t = 40
+dpi = 300
+axes = True
+plotSize = 0.6
+# axes = False
+# save_format = 'tif'
+# background_image = False
 
-# # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 # Extract data
 vecU = output_dict['vecU']
@@ -329,20 +335,75 @@ intXi = output_dict['intXi']
 
 # -----------------------------------------------------------------------------
 
+from skimage.morphology import dilation
+from skimage.morphology import disk
+
+intYi = output_dict['intYi']
+intXi = output_dict['intXi']
+
+vecROI = np.zeros_like(stack[0,...])
+for y, iYi in enumerate(intYi):
+    for x, iXi in enumerate(intXi):
+        
+        vecROI[iYi+intSize//2,iXi+intSize//2] = 255
+        
+vecROI = dilation(vecROI, footprint=disk(3))
+
+# -----------------------------------------------------------------------------
+
+# Get figure size variables
+width = stack.shape[2]
+height = stack.shape[1]
+wh_ratio = width/height
+if axes:
+    fig_width = width/plotSize/dpi
+    fig_height = height/plotSize/dpi
+else:
+    fig_width = width/dpi
+    fig_height = height/dpi
+
+# -----------------------------------------------------------------------------
+
 # Get vector field xy coordinates
 xCoords, yCoords = np.meshgrid(intXi+intSize//2, intYi+intSize//2)
 
-# Get vector field norm.
-norm = np.hypot(vecU, vecV)
+# Plot quiver
+fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=dpi) 
+ax.quiver(xCoords, yCoords, vecU[t,...], vecV[t,...], pivot='tail')
+plt.ylim([0, stack.shape[1]])
+plt.xlim([0, stack.shape[2]])
 
-# # Plot quiver
-# fig, ax = plt.subplots()
-# ax.quiver(xCoords, yCoords, vecU[t,...], vecV[t,...], pivot='mid')
-# plt.ylim([0, stack.shape[1]])
-# plt.xlim([0, stack.shape[2]])
+plt.yticks(fontsize=6)
+plt.xticks(fontsize=6)
+plt.ylabel('y position (pixel)', fontsize=8)
+plt.xlabel('x position (pixel)', fontsize=8)
 
-# ax.set_axis_off()
+# plt.imshow(np.invert(vecROI), cmap='gray')
+# plt.imshow(stack[t,...], cmap='gray')
+
+if axes:
+    ax.set_position([0.2/wh_ratio, 0.2, plotSize, plotSize])
+    ax.labelsize = 1
+else:
+    ax.set_axis_off()   
+    fig.subplots_adjust(top=1, bottom=0, right=1, left=0, wspace=0, hspace=0)
+    
+# save figure
+plt.savefig("output.tif", dpi=dpi)
+
+# -----------------------------------------------------------------------------
+
+# plt.imshow(stack[t,...], cmap='gray')
+
 # fig.subplots_adjust(top=1, bottom=0, right=1, left=0, wspace=0, hspace=0)
+# ax.set_axis_off()
+
+
+# plt.imshow(stack[t,...], cmap='gray')
+
+#
+# dpi = 300
+# fig.set_size_inches(stack.shape[2]/dpi, stack.shape[1]/dpi)
 
 # dpi = 300  # adjust this as needed
 # fig.set_dpi(dpi)
