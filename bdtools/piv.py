@@ -239,12 +239,17 @@ from pathlib import Path
 stack_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8.tif'
 # mask_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8_mask-all.tif'
 mask_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8_mask-proj.tif'
-
-# -----------------------------------------------------------------------------
-
 stack = io.imread(Path('../data/piv', stack_name))
 mask = io.imread(Path('../data/piv', mask_name))
 # mask = None
+
+# -----------------------------------------------------------------------------
+
+# stack_name = '18-07-03_100x_UtrCH_Ctrl_a2_uint8.tif'
+# stack = io.imread(Path('../data/piv', stack_name))
+# mask = None
+
+# -----------------------------------------------------------------------------
 
 # getpiv parameters
 intSize = 36 # size of interrogation window (pixels)
@@ -293,47 +298,7 @@ output_dict = filtpiv(
 end = time.time()
 print(f'  {(end-start):5.3f} s') 
 
-#%% Save vecU & vecV 
-
-# Extract data
-vecU = output_dict['vecU']
-vecV = output_dict['vecV']
-
-io.imsave(
-    Path('../data/piv', stack_name.replace('.tif', '_vecU.tif')),
-    vecU.astype('float32'),
-    check_contrast=False,
-    )
-
-io.imsave(
-    Path('../data/piv', stack_name.replace('.tif', '_vecV.tif')),
-    vecV.astype('float32'),
-    check_contrast=False,
-    )
-
-#%% dispiv
-
-import matplotlib.pyplot as plt
-
-# -----------------------------------------------------------------------------
-
-t = 40
-dpi = 300
-axes = True
-plotSize = 0.6
-# axes = False
-# save_format = 'tif'
-# background_image = False
-
-# -----------------------------------------------------------------------------
-
-# Extract data
-vecU = output_dict['vecU']
-vecV = output_dict['vecV']
-intYi = output_dict['intYi']
-intXi = output_dict['intXi']
-
-# -----------------------------------------------------------------------------
+#%% 
 
 from skimage.morphology import dilation
 from skimage.morphology import disk
@@ -345,70 +310,159 @@ vecROI = np.zeros_like(stack[0,...])
 for y, iYi in enumerate(intYi):
     for x, iXi in enumerate(intXi):
         
-        vecROI[iYi+intSize//2,iXi+intSize//2] = 255
-        
+        if iYi == intYi[-1] and iXi == intXi[-1]:
+            color = 255
+        else:
+            color = 128
+
+        vecROI[iYi+intSize//2,iXi+intSize//2] = color
+           
 vecROI = dilation(vecROI, footprint=disk(3))
 
-# -----------------------------------------------------------------------------
+#%% dispiv
 
-# Get figure size variables
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
+
+# Parameters ------------------------------------------------------------------
+
+t = 45
+axes = True
+colorbar = True
+background_image = False
+title = 'Flow'
+pixel_size = 0.2
+space_unit = 'µm'
+time_interval = 1/3
+time_unit = 'min'
+renference_vector = 5 # set to 0 to deactivate
+xTick_interval = 20
+yTick_interval = 20
+cmap = 'gray'
+
+# Advanced parameters ---------------------------------------------------------
+
+dpi = 300
+plotSize = 0.6
+xTick_min = 0
+xTick_max = 'auto'
+yTick_min = 0
+yTick_max = 'auto'
+stack.shape[2] * pixel_size
+stack.shape[1] * pixel_size
+
+# rcParams --------------------------------------------------------------------
+
+rcParams_keys = rcParams
+rcParams['axes.linewidth'] =0.5
+rcParams['axes.labelsize'] = 50 # ????
+rcParams['contour.linewidth'] = 0.5 # ????
+rcParams['xtick.major.width'] = 0.5
+rcParams['ytick.major.width'] = 0.5
+rcParams['xtick.minor.visible'] = True
+rcParams['ytick.minor.visible'] = True
+rcParams['xtick.labelsize'] = 6
+rcParams['ytick.labelsize'] = 6
+rcParams['figure.facecolor'] = 'white'
+rcParams['axes.facecolor'] = 'white'
+
+# Initialize ------------------------------------------------------------------
+
+# Extract data
+vecU = output_dict['vecU']
+vecV = output_dict['vecV']
+intSize = output_dict['intSize']
+intYi = output_dict['intYi']
+intXi = output_dict['intXi']
+
+# Set figure layout
 width = stack.shape[2]
 height = stack.shape[1]
-wh_ratio = width/height
+fig_width = width / dpi
+fig_height = height / dpi
 if axes:
-    fig_width = width/plotSize/dpi
-    fig_height = height/plotSize/dpi
-else:
-    fig_width = width/dpi
-    fig_height = height/dpi
+    fig_width /= plotSize
+    fig_height /= plotSize
+    bottom = (1 - plotSize) * 0.5
+    top = bottom + plotSize
+    left = (1 - plotSize) * 0.5
+    right = left + plotSize
 
 # -----------------------------------------------------------------------------
 
-# Get vector field xy coordinates
-xCoords, yCoords = np.meshgrid(intXi+intSize//2, intYi+intSize//2)
+# Get vector xy coordinates
+xCoords, yCoords = np.meshgrid(intXi + intSize // 2, intYi + intSize // 2)
+
+# Get vector norm
+norm = np.hypot(vecU, vecV)
 
 # Plot quiver
 fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=dpi) 
-ax.quiver(xCoords, yCoords, vecU[t,...], vecV[t,...], pivot='tail')
-plt.ylim([0, stack.shape[1]])
-plt.xlim([0, stack.shape[2]])
+plt.ylim([0, height * pixel_size])
+plt.xlim([0, width * pixel_size])
 
-plt.yticks(fontsize=6)
-plt.xticks(fontsize=6)
-plt.ylabel('y position (pixel)', fontsize=8)
-plt.xlabel('x position (pixel)', fontsize=8)
+plot = ax.quiver(
+    xCoords * pixel_size,
+    yCoords * pixel_size,
+    vecU[t,...] * pixel_size / time_interval,
+    vecV[t,...] * pixel_size / time_interval * -1,
+    norm[t,...] * pixel_size / time_interval, 
+    cmap=cmap,
+    pivot='tail'
+    )
 
-# plt.imshow(np.invert(vecROI), cmap='gray')
-# plt.imshow(stack[t,...], cmap='gray')
-
-if axes:
-    ax.set_position([0.2/wh_ratio, 0.2, plotSize, plotSize])
-    ax.labelsize = 1
-else:
-    ax.set_axis_off()   
-    fig.subplots_adjust(top=1, bottom=0, right=1, left=0, wspace=0, hspace=0)
-    
-# save figure
-plt.savefig("output.tif", dpi=dpi)
+ax.invert_yaxis()
 
 # -----------------------------------------------------------------------------
 
-# plt.imshow(stack[t,...], cmap='gray')
+if axes:
+    
+    fig.subplots_adjust(top=top, bottom=bottom, right=right, left=left)
+    if xTick_max == 'auto': xTick_max = width * pixel_size
+    if yTick_max == 'auto': yTick_max = height * pixel_size
+    ax.set_xticks(np.arange(xTick_min, xTick_max + 1, xTick_interval))
+    ax.set_yticks(np.arange(yTick_min, yTick_max + 1, yTick_interval))
+    ax.set_xlabel(f'x position ({space_unit})')    
+    ax.set_ylabel(f'y position ({space_unit})')
+     
+else:
+    
+    fig.subplots_adjust(top=1, bottom=0, right=1, left=0)
+    ax.set_axis_off()
 
-# fig.subplots_adjust(top=1, bottom=0, right=1, left=0, wspace=0, hspace=0)
-# ax.set_axis_off()
+# -----------------------------------------------------------------------------
+    
+if background_image:
+    ax.imshow(vecROI, extent=[0, width * pixel_size, 0, height * pixel_size], cmap='gray')
 
+# -----------------------------------------------------------------------------
+    
+if renference_vector:
+    ax.quiverkey(
+        plot, 0, 1.075, renference_vector, 
+        label=f'{renference_vector} {space_unit}.{time_unit}-1', 
+        labelpos='N', labelsep=0.075,
+        coordinates='axes',
+        fontproperties={'size': 6}
+        )
 
-# plt.imshow(stack[t,...], cmap='gray')
+# -----------------------------------------------------------------------------
 
-#
-# dpi = 300
-# fig.set_size_inches(stack.shape[2]/dpi, stack.shape[1]/dpi)
+if title is not None and axes:
+    plt.title(title, fontsize=10, pad=10)
 
-# dpi = 300  # adjust this as needed
-# fig.set_dpi(dpi)
-# height, width = stack.shape[1], stack.shape[2] # adjust these as needed
-# fig.set_size_inches(width/dpi, height/dpi)
+# -----------------------------------------------------------------------------
+
+if colorbar and axes:
+    cbax = fig.add_axes([right + 0.025, bottom, 0.025, plotSize])
+    fig.colorbar(plot, orientation='vertical', cax=cbax)
+    cbax.set_ylabel(f'{space_unit}.{time_unit}-1', fontsize=6)
+    cbax.tick_params(axis='y', labelsize=6)
+
+# -----------------------------------------------------------------------------
+
+# save figure
+plt.savefig("output.tif", dpi=dpi)
 
 # # -----------------------------------------------------------------------------
 
@@ -418,7 +472,7 @@ plt.savefig("output.tif", dpi=dpi)
 # buf = buf.reshape((h, w, 3))
 # vecArrows = buf[:,:,0]
 
-# #%% 
+# # -----------------------------------------------------------------------------
 
 # from skimage.morphology import dilation
 # from skimage.morphology import disk
@@ -436,8 +490,20 @@ plt.savefig("output.tif", dpi=dpi)
 
 # # -----------------------------------------------------------------------------
 
+#%% Save vecU & vecV 
+
+# # Extract data
+# vecU = output_dict['vecU']
+# vecV = output_dict['vecV']
+
 # io.imsave(
-#     Path('../data/piv', stack_name.replace('.tif', '_vecROI.tif')),
-#     vecROI + np.invert(vecArrows),
+#     Path('../data/piv', stack_name.replace('.tif', '_vecU.tif')),
+#     vecU.astype('float32'),
+#     check_contrast=False,
+#     )
+
+# io.imsave(
+#     Path('../data/piv', stack_name.replace('.tif', '_vecV.tif')),
+#     vecV.astype('float32'),
 #     check_contrast=False,
 #     )
