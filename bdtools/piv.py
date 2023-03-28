@@ -330,7 +330,7 @@ t = 45
 axes = True
 colorbar = True
 background_image = False
-title = 'Flow'
+title = 'Flow' # set to None to deactivate
 pixel_size = 0.2
 space_unit = 'µm'
 time_interval = 1/3
@@ -350,19 +350,22 @@ yTick_min = 0
 yTick_max = 'auto'
 stack.shape[2] * pixel_size
 stack.shape[1] * pixel_size
+linewidth = 0.5
+fontSize = 8
 
 # rcParams --------------------------------------------------------------------
 
-rcParams_keys = rcParams
-rcParams['axes.linewidth'] =0.5
-rcParams['axes.labelsize'] = 50 # ????
-rcParams['contour.linewidth'] = 0.5 # ????
-rcParams['xtick.major.width'] = 0.5
-rcParams['ytick.major.width'] = 0.5
+rcParams['axes.linewidth'] = linewidth
+rcParams['axes.titlesize'] = fontSize * 1.5
+rcParams['axes.labelsize'] = fontSize
+
+rcParams['xtick.major.width'] = linewidth
+rcParams['ytick.major.width'] = linewidth
 rcParams['xtick.minor.visible'] = True
 rcParams['ytick.minor.visible'] = True
-rcParams['xtick.labelsize'] = 6
-rcParams['ytick.labelsize'] = 6
+rcParams['xtick.labelsize'] = fontSize * 0.75
+rcParams['ytick.labelsize'] = fontSize * 0.75
+
 rcParams['figure.facecolor'] = 'white'
 rcParams['axes.facecolor'] = 'white'
 
@@ -387,20 +390,17 @@ if axes:
     top = bottom + plotSize
     left = (1 - plotSize) * 0.5
     right = left + plotSize
-
-# -----------------------------------------------------------------------------
-
+    
 # Get vector xy coordinates
 xCoords, yCoords = np.meshgrid(intXi + intSize // 2, intYi + intSize // 2)
 
 # Get vector norm
 norm = np.hypot(vecU, vecV)
 
+# -----------------------------------------------------------------------------
+
 # Plot quiver
 fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=dpi) 
-plt.ylim([0, height * pixel_size])
-plt.xlim([0, width * pixel_size])
-
 plot = ax.quiver(
     xCoords * pixel_size,
     yCoords * pixel_size,
@@ -408,9 +408,12 @@ plot = ax.quiver(
     vecV[t,...] * pixel_size / time_interval * -1,
     norm[t,...] * pixel_size / time_interval, 
     cmap=cmap,
-    pivot='tail'
+    pivot='mid'
     )
 
+# Set xy axes limits
+plt.ylim([0, height * pixel_size])
+plt.xlim([0, width * pixel_size])
 ax.invert_yaxis()
 
 # -----------------------------------------------------------------------------
@@ -443,21 +446,19 @@ if renference_vector:
         label=f'{renference_vector} {space_unit}.{time_unit}-1', 
         labelpos='N', labelsep=0.075,
         coordinates='axes',
-        fontproperties={'size': 6}
         )
 
 # -----------------------------------------------------------------------------
 
 if title is not None and axes:
-    plt.title(title, fontsize=10, pad=10)
-
+    plt.title(title, pad=10)
+    
 # -----------------------------------------------------------------------------
 
 if colorbar and axes:
     cbax = fig.add_axes([right + 0.025, bottom, 0.025, plotSize])
     fig.colorbar(plot, orientation='vertical', cax=cbax)
-    cbax.set_ylabel(f'{space_unit}.{time_unit}-1', fontsize=6)
-    cbax.tick_params(axis='y', labelsize=6)
+    cbax.set_ylabel(f'{space_unit}.{time_unit}-1')
 
 # -----------------------------------------------------------------------------
 
