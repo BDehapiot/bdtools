@@ -252,8 +252,8 @@ mask = None
 # -----------------------------------------------------------------------------
 
 # getpiv parameters
-intSize = 36 # size of interrogation window (pixels)
-srcSize = 72 # size of search window (pixels)
+intSize = 25 # size of interrogation window (pixels)
+srcSize = 50 # size of search window (pixels)
 binning = 1 # reduce image size to speed up computation (1, 2, 4, 8...)
 maskCutOff = 1 # mask out interrogation windows (???) 
 
@@ -261,7 +261,7 @@ maskCutOff = 1 # mask out interrogation windows (???)
 outlier_cutoff = 1.5 # remove outliers from vector field
 spatial_smooth = 3 # spatial smoothening of vector field
 temporal_smooth = 3 # temporal smoothening of vector field
-iterations_smooth = 1 # iterations of smoothening process
+iterations_smooth = 3 # iterations of smoothening process
 
 # -----------------------------------------------------------------------------
 
@@ -306,22 +306,19 @@ import matplotlib.font_manager as fm
 
 # Parameters ------------------------------------------------------------------
 
-color_mod = 'dark' # 'light' or 'dark'
-legend = True
-
-
 t = 45
-axes = True
-colorbar = True
 background_image = True
+
+legend = True
+color_mod = 'dark'
+colorbar = True
 title = 'Flow' # set to None to deactivate
+renference_vector = 0.5 # set to 0 to deactivate
+
 pixel_size = 0.2
 space_unit = 'µm'
-time_interval = 1/3
-time_unit = 'min'
-renference_vector = 10 # set to 0 to deactivate
-xTick_interval = 20
-yTick_interval = 20
+time_interval = 5
+time_unit = 's'
 cmap = 'viridis'
 
 # Advanced parameters ---------------------------------------------------------
@@ -330,12 +327,12 @@ dpi = 300
 plotSize = 0.6
 xTick_min = 0
 xTick_max = 'auto'
+xTick_interval = 20
 yTick_min = 0
 yTick_max = 'auto'
-stack.shape[2] * pixel_size
-stack.shape[1] * pixel_size
+yTick_interval = 20
 linewidth = 0.5
-fontSize = 6
+fontSize = 8
 
 # rcParams --------------------------------------------------------------------
 
@@ -359,6 +356,7 @@ if color_mod == 'dark':
 plt.rcParams['axes.edgecolor'] = foreground_color
 plt.rcParams['axes.labelcolor'] = foreground_color
 plt.rcParams['axes.titlecolor'] = foreground_color
+plt.rcParams['text.color'] = foreground_color
 plt.rcParams['xtick.color'] = foreground_color
 plt.rcParams['ytick.color'] = foreground_color
 plt.rcParams['axes.facecolor'] = background_color
@@ -378,7 +376,7 @@ width = stack.shape[2]
 height = stack.shape[1]
 fig_width = width / dpi
 fig_height = height / dpi
-if axes:
+if legend:
     fig_width /= plotSize
     fig_height /= plotSize
     bottom = (1 - plotSize) * 0.5
@@ -400,6 +398,7 @@ print(vmax)
 
 #%%
 
+# for t in [0]:#range(vecU.shape[0]):
 for t in range(vecU.shape[0]):
     
     # Plot quiver
@@ -421,6 +420,14 @@ for t in range(vecU.shape[0]):
     plt.xlim([0, width * pixel_size])
     ax.invert_yaxis()
     
+    # Add background image
+    if background_image:
+        ax.imshow(
+            np.flip(stack[t,...], axis=0), 
+            extent=[0, width * pixel_size, 0, height * pixel_size], 
+            cmap='gray'
+            )
+    
     # Set custom axes labels
     if legend:
         
@@ -436,14 +443,10 @@ for t in range(vecU.shape[0]):
         
         fig.subplots_adjust(top=1, bottom=0, right=1, left=0)
         ax.set_axis_off()
-
-    # Add background image
-    if background_image:
-        ax.imshow(
-            np.flip(stack[t,...], axis=0), 
-            extent=[0, width * pixel_size, 0, height * pixel_size], 
-            cmap='gray'
-            )
+        
+    # Add title
+    if title is not None and legend:
+        plt.title(title, pad=10)
         
     # Add reference vector
     if renference_vector:
@@ -456,9 +459,14 @@ for t in range(vecU.shape[0]):
             coordinates='axes',
             )
         
-    # Add title
-    if title is not None and axes:
-        plt.title(title, pad=10)
+    # Add time label
+    plt.text(
+        1, 1.075,
+        f'{t*time_interval} {time_unit}',
+        transform=ax.transAxes,
+        fontsize=fontSize,
+        ha='center',
+        )
        
     # Add colorbar
     if colorbar and legend:
