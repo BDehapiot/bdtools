@@ -77,10 +77,10 @@ def getpiv(
         srcSize = srcSize//binning 
         if intSize % 2 != 0:
             intSize += intSize % 2
-            print(f'interrogation window size adjusted to {intSize*binning}')
+            print(f'interrogation window size adjusted to {intSize * binning}')
         if srcSize % 2 != 0:
             srcSize += srcSize % 2
-            print(f'search window size adjusted to {srcSize*binning}')  
+            print(f'search window size adjusted to {srcSize * binning}')  
     
         # Data
         stack = rescale(stack, (1, 1/binning, 1/binning), preserve_range=True)
@@ -134,16 +134,16 @@ def getpiv(
     output_dict = {
     
     # Parameters
-    'intSize': intSize,
-    'srcSize': srcSize,
+    'intSize': intSize * binning,
+    'srcSize': srcSize * binning,
     'binning': binning,
     'maskCutOff': maskCutOff,
     
     # Data
-    'intYi': intYi,
-    'intXi': intXi,
-    'vecU': np.stack([data[0] for data in output_list], axis=0),
-    'vecV': np.stack([data[1] for data in output_list], axis=0),
+    'intYi': intYi * binning,
+    'intXi': intXi * binning,
+    'vecU': np.stack([data[0] for data in output_list], axis=0) * binning,
+    'vecV': np.stack([data[1] for data in output_list], axis=0) * binning,
     'mask': mask
 
     }
@@ -236,18 +236,18 @@ from pathlib import Path
 
 # -----------------------------------------------------------------------------
 
-stack_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8.tif'
-# mask_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8_mask-all.tif'
-mask_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8_mask-proj.tif'
-stack = io.imread(Path('../data/piv', stack_name))
-mask = io.imread(Path('../data/piv', mask_name))
-# mask = None
+# stack_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8.tif'
+# # mask_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8_mask-all.tif'
+# mask_name = '18-07-11_40x_GBE_UtrCH_Ctrl_b1_uint8_mask-proj.tif'
+# stack = io.imread(Path('../data/piv', stack_name))
+# mask = io.imread(Path('../data/piv', mask_name))
+# # mask = None
 
 # -----------------------------------------------------------------------------
 
-# stack_name = '18-07-03_100x_UtrCH_Ctrl_a2_uint8.tif'
-# stack = io.imread(Path('../data/piv', stack_name))
-# mask = None
+stack_name = '18-07-03_100x_UtrCH_Ctrl_a2_uint8.tif'
+stack = io.imread(Path('../data/piv', stack_name))
+mask = None
 
 # -----------------------------------------------------------------------------
 
@@ -302,8 +302,13 @@ print(f'  {(end-start):5.3f} s')
 
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
+import matplotlib.font_manager as fm
 
 # Parameters ------------------------------------------------------------------
+
+color_mod = 'dark' # 'light' or 'dark'
+legend = True
+
 
 t = 45
 axes = True
@@ -330,14 +335,13 @@ yTick_max = 'auto'
 stack.shape[2] * pixel_size
 stack.shape[1] * pixel_size
 linewidth = 0.5
-fontSize = 8
+fontSize = 6
 
 # rcParams --------------------------------------------------------------------
 
 rcParams['axes.linewidth'] = linewidth
 rcParams['axes.titlesize'] = fontSize * 1.5
 rcParams['axes.labelsize'] = fontSize
-
 rcParams['xtick.major.width'] = linewidth
 rcParams['ytick.major.width'] = linewidth
 rcParams['xtick.minor.visible'] = True
@@ -345,8 +349,20 @@ rcParams['ytick.minor.visible'] = True
 rcParams['xtick.labelsize'] = fontSize * 0.75
 rcParams['ytick.labelsize'] = fontSize * 0.75
 
-rcParams['figure.facecolor'] = 'white'
-rcParams['axes.facecolor'] = 'white'
+if color_mod == 'light':
+    background_color = 'white'
+    foreground_color = 'black'
+if color_mod == 'dark':
+    background_color = 'black'
+    foreground_color = 'white'
+    
+plt.rcParams['axes.edgecolor'] = foreground_color
+plt.rcParams['axes.labelcolor'] = foreground_color
+plt.rcParams['axes.titlecolor'] = foreground_color
+plt.rcParams['xtick.color'] = foreground_color
+plt.rcParams['ytick.color'] = foreground_color
+plt.rcParams['axes.facecolor'] = background_color
+plt.rcParams['figure.facecolor'] = background_color
 
 # Initialize ------------------------------------------------------------------
 
@@ -384,7 +400,7 @@ print(vmax)
 
 #%%
 
-for t in range(stack.shape[0]):
+for t in range(vecU.shape[0]):
     
     # Plot quiver
     fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=dpi) 
@@ -406,7 +422,7 @@ for t in range(stack.shape[0]):
     ax.invert_yaxis()
     
     # Set custom axes labels
-    if axes:
+    if legend:
         
         fig.subplots_adjust(top=top, bottom=bottom, right=right, left=left)
         if xTick_max == 'auto': xTick_max = width * pixel_size
@@ -433,8 +449,10 @@ for t in range(stack.shape[0]):
     if renference_vector:
         ax.quiverkey(
             plot, 0, 1.075, renference_vector, 
+            color=foreground_color,
             label=f'{renference_vector} {space_unit}.{time_unit}-1', 
-            labelpos='N', labelsep=0.075,
+            labelpos='N', labelsep=0.075, labelcolor=foreground_color,
+            fontproperties=fm.FontProperties(size=fontSize),
             coordinates='axes',
             )
         
@@ -443,11 +461,11 @@ for t in range(stack.shape[0]):
         plt.title(title, pad=10)
        
     # Add colorbar
-    if colorbar and axes:
+    if colorbar and legend:
         cbax = fig.add_axes([right + 0.025, bottom, 0.025, plotSize])
         fig.colorbar(plot, orientation='vertical', cax=cbax)
         cbax.set_ylabel(f'{space_unit}.{time_unit}-1')
-        cbax.minorticks_off()
+        cbax.minorticks_off()       
         
     # Save figure
     import os
@@ -460,7 +478,8 @@ for t in range(stack.shape[0]):
     plt.savefig(Path('piv') / f'piv_t{t}.tif', dpi=dpi)  
 
     # Close figure
-    plt.close()
+    if t > 1:
+        plt.close()
 
 
 # # save figure
