@@ -7,15 +7,15 @@ from bdtools import nanfilt, nanreplace
 
 #%% Initialize ----------------------------------------------------------------
 
-mask = io.imread(Path('resources') / 'nan' / 'mask.tif')
-mask_3d = io.imread(Path('resources') / 'nan' / 'mask_3d.tif')
-mask_zoom = io.imread(Path('resources') / 'nan' / 'mask_zoom.tif')
-mask_3d_zoom = io.imread(Path('resources') / 'nan' / 'mask_3d_zoom.tif')
-noise_nan = io.imread(Path('resources') / 'nan' / 'noise_nan.tif')
-noise_nan_3d = io.imread(Path('resources') / 'nan' / 'noise_nan_3d.tif')
-noise_nan_zoom = io.imread(Path('resources') / 'nan' / 'noise_nan_zoom.tif')
-noise_nan_3d_zoom = io.imread(Path('resources') / 'nan' / 'noise_nan_3d_zoom.tif')
-noise_nan_hole = io.imread(Path('resources') / 'nan' / 'noise_nan_hole.tif')
+mask = io.imread(Path('data') / 'nan' / 'mask.tif')
+mask_3d = io.imread(Path('data') / 'nan' / 'mask_3d.tif')
+mask_zoom = io.imread(Path('data') / 'nan' / 'mask_zoom.tif')
+mask_3d_zoom = io.imread(Path('data') / 'nan' / 'mask_3d_zoom.tif')
+noise_nan = io.imread(Path('data') / 'nan' / 'noise_nan.tif')
+noise_nan_3d = io.imread(Path('data') / 'nan' / 'noise_nan_3d.tif')
+noise_nan_zoom = io.imread(Path('data') / 'nan' / 'noise_nan_zoom.tif')
+noise_nan_3d_zoom = io.imread(Path('data') / 'nan' / 'noise_nan_3d_zoom.tif')
+noise_nan_hole = io.imread(Path('data') / 'nan' / 'noise_nan_hole.tif')
 
 #%% Test cases ----------------------------------------------------------------
 
@@ -142,7 +142,7 @@ test_cases = [
 
 # Load expected outputs
 expected_outputs = []
-for path in Path('resources', 'nan').iterdir():
+for path in Path('data', 'nan').iterdir():
     if 'nanfilt_expected' in path.name:
         expected_outputs.append(io.imread(path))
 
@@ -176,7 +176,7 @@ if all(nanfilt_compare):
 # # Save expected outputs      
 # for i, output in enumerate(test_outputs):
 #     io.imsave(
-#         Path('resources') / 'nan' / f'nanfilt_expected_output_{i:02}.tif',
+#         Path('data') / 'nan' / f'nanfilt_expected_output_{i:02}.tif',
 #         output.astype('float32'),
 #         check_contrast=False,
 #         )
@@ -185,7 +185,7 @@ if all(nanfilt_compare):
 
 # Load expected outputs
 expected_outputs = []
-for path in Path('resources', 'nan').iterdir():
+for path in Path('data', 'nan').iterdir():
     if 'nanreplace_expected' in path.name:
         expected_outputs.append(io.imread(path))
 
@@ -217,7 +217,7 @@ if all(nanreplace_compare):
 # # Save expected outputs      
 # for i, output in enumerate(test_outputs):
 #     io.imsave(
-#         Path('resources') / 'nan' / f'nanreplace_expected_output_{i:02}.tif',
+#         Path('data') / 'nan' / f'nanreplace_expected_output_{i:02}.tif',
 #         output.astype('float32'),
 #         check_contrast=False,
 #         )
