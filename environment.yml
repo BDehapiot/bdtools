@@ -11,3 +11,4 @@ dependencies:
   - matplotlib-base=3.6.*
   - joblib
   - numba
+  - pytest
