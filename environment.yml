@@ -1,4 +1,4 @@
-name: BDTools
+name: bdtools
 
 channels:
   - conda-forge
