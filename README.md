@@ -5,3 +5,6 @@ Collection of tools for recurring tasks
 
 
 [![Python Version](https://img.shields.io/badge/Python-3.9-blue)](https://img.shields.io/badge/Python-3.9-blue) [![Python Version](https://img.shields.io/badge/Python-3.10-blue)](https://img.shields.io/badge/Python-3.10-blue) [![Python Version](https://img.shields.io/badge/Python-3.11-blue)](https://img.shields.io/badge/Python-3.11-blue) 
+
+
+[![Badge](https://img.shields.io/badge/Python-3.9-blue)](https://img.shields.io/badge/Python-3.9-blue) | [![Badge](https://img.shields.io/badge/Python-3.10-blue)](https://img.shields.io/badge/Python-3.10-blue) | [![Badge](https://img.shields.io/badge/Python-3.11-blue)](https://img.shields.io/badge/Python-3.11-blue)

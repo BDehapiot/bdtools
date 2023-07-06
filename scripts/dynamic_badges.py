@@ -41,12 +41,20 @@ def generate_badge_urls(os_list, python_list):
     
     return os_badge_urls, python_badge_urls
 
-def update_readme_badges(python_badge_urls):
+# def update_readme_badges(python_badge_urls):
+    
+#     with open(ROOT_PATH / 'README.md', "a") as file:
+#         file.write("\n\n")
+#         for url in python_badge_urls:
+#             file.write(f"[![Python Version]({url})]({url}) ")
+#         file.write("\n")
+        
+def update_readme_badges(badge_urls):
+    formatted_badges = " | ".join(f"[![Badge]({url})]({url})" for url in badge_urls)
     
     with open(ROOT_PATH / 'README.md', "a") as file:
         file.write("\n\n")
-        for url in python_badge_urls:
-            file.write(f"[![Python Version]({url})]({url}) ")
+        file.write(formatted_badges)
         file.write("\n")
 
 #%%
