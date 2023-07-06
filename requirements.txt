@@ -1,0 +1,7 @@
+numpy==1.23.*
+scipy
+scikit-image
+matplotlib==3.6.*
+joblib
+numba
+pytest
