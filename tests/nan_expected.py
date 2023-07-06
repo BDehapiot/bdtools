@@ -3,19 +3,23 @@
 import numpy as np
 from skimage import io 
 from pathlib import Path
-from bdtools import nanfilt, nanreplace
+
+ROOT_PATH = Path(__file__).resolve().parents[1]
+DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'nan'
+
+from bdtools.nan import nanfilt, nanreplace
 
 #%% Initialize ----------------------------------------------------------------
 
-mask = io.imread(Path('data') / 'nan' / 'mask.tif')
-mask_3d = io.imread(Path('data') / 'nan' / 'mask_3d.tif')
-mask_zoom = io.imread(Path('data') / 'nan' / 'mask_zoom.tif')
-mask_3d_zoom = io.imread(Path('data') / 'nan' / 'mask_3d_zoom.tif')
-noise_nan = io.imread(Path('data') / 'nan' / 'noise_nan.tif')
-noise_nan_3d = io.imread(Path('data') / 'nan' / 'noise_nan_3d.tif')
-noise_nan_zoom = io.imread(Path('data') / 'nan' / 'noise_nan_zoom.tif')
-noise_nan_3d_zoom = io.imread(Path('data') / 'nan' / 'noise_nan_3d_zoom.tif')
-noise_nan_hole = io.imread(Path('data') / 'nan' / 'noise_nan_hole.tif')
+mask = io.imread(DATA_PATH / 'mask.tif')
+mask_3d = io.imread(DATA_PATH / 'mask_3d.tif')
+mask_zoom = io.imread(DATA_PATH / 'mask_zoom.tif')
+mask_3d_zoom = io.imread(DATA_PATH / 'mask_3d_zoom.tif')
+noise_nan = io.imread(DATA_PATH / 'noise_nan.tif')
+noise_nan_3d = io.imread(DATA_PATH / 'noise_nan_3d.tif')
+noise_nan_zoom = io.imread(DATA_PATH / 'noise_nan_zoom.tif')
+noise_nan_3d_zoom = io.imread(DATA_PATH / 'noise_nan_3d_zoom.tif')
+noise_nan_hole = io.imread(DATA_PATH / 'noise_nan_hole.tif')
 
 #%% Test cases ----------------------------------------------------------------
 
@@ -135,89 +139,21 @@ test_cases = [
         'filt_method': 'mean', 'iterations': 'inf',
         'parallel': True,
     },
-    
 ]
 
-#%% Test: nanfilt -------------------------------------------------------------
+#%% Save expected outputs -----------------------------------------------------
 
-# Load expected outputs
-expected_outputs = []
-for path in Path('data', 'nan').iterdir():
-    if 'nanfilt_expected' in path.name:
-        expected_outputs.append(io.imread(path))
-
-# Test cases
-test_outputs = [] 
-for i, case in enumerate(test_cases):
+for i, test_case in enumerate(test_cases):
     if i < 17:
-        try:
-            test_outputs.append(nanfilt(**case))
-        except Exception as e:
-            print(f'nanfilt test case {i:02}: failed')
-            print(f'Error: {e}')
-
-# Compare test & expected outputs
-nanfilt_compare = []
-for i in range(len(test_cases)):
-    if i < 17:
-        compare = np.array_equal(
-            test_outputs[i].astype('float32'), 
-            expected_outputs[i], 
-            equal_nan=True
+        io.imsave(
+            DATA_PATH / f'nanfilt_expected_output_{i:02}.tif',
+            nanfilt(**test_case).astype('float32'),
+            check_contrast=False,
             )
-        nanfilt_compare.append(compare)
-        if not compare:
-            print(f'nanfilt test case {i:02}: failed')
-if all(nanfilt_compare):
-    print('nanfilt tests: all passed')
-              
-# -----------------------------------------------------------------------------
-    
-# # Save expected outputs      
-# for i, output in enumerate(test_outputs):
-#     io.imsave(
-#         Path('data') / 'nan' / f'nanfilt_expected_output_{i:02}.tif',
-#         output.astype('float32'),
-#         check_contrast=False,
-#         )
-
-#%% Test: nanreplace ----------------------------------------------------------
-
-# Load expected outputs
-expected_outputs = []
-for path in Path('data', 'nan').iterdir():
-    if 'nanreplace_expected' in path.name:
-        expected_outputs.append(io.imread(path))
-
-# Test cases
-test_outputs = [] 
-for i, case in enumerate(test_cases):
-    try:
-        test_outputs.append(nanreplace(**case))
-    except Exception as e:
-        print(f'nanreplace test case {i:02}: failed')
-        print(f'Error: {e}')
-
-# Compare test & expected outputs
-nanreplace_compare = []
-for i in range(len(test_cases)):
-    compare = np.array_equal(
-        test_outputs[i].astype('float32'), 
-        expected_outputs[i], 
-        equal_nan=True
-        )    
-    nanreplace_compare.append(compare)
-    if not compare:
-        print(f'nanreplace test case {i:02}: failed')
-if all(nanreplace_compare):
-    print('nanreplace tests: all passed')
-    
-# -----------------------------------------------------------------------------
-    
-# # Save expected outputs      
-# for i, output in enumerate(test_outputs):
-#     io.imsave(
-#         Path('data') / 'nan' / f'nanreplace_expected_output_{i:02}.tif',
-#         output.astype('float32'),
-#         check_contrast=False,
-#         )
+        
+for i, test_case in enumerate(test_cases):
+    io.imsave(
+        DATA_PATH / f'nanreplace_expected_output_{i:02}.tif',
+        nanreplace(**test_case).astype('float32'),
+        check_contrast=False,
+        )

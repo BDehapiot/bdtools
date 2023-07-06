@@ -4,24 +4,27 @@ import pytest
 import numpy as np
 from skimage import io 
 from pathlib import Path
+
+ROOT_PATH = Path(__file__).resolve().parents[1]
+DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'nan'
+
 from bdtools.nan import nanfilt, nanreplace
 
 #%% Initialize ----------------------------------------------------------------
 
-mask = io.imread(Path('data') / 'nan' / 'mask.tif')
-mask_3d = io.imread(Path('data') / 'nan' / 'mask_3d.tif')
-mask_zoom = io.imread(Path('data') / 'nan' / 'mask_zoom.tif')
-mask_3d_zoom = io.imread(Path('data') / 'nan' / 'mask_3d_zoom.tif')
-noise_nan = io.imread(Path('data') / 'nan' / 'noise_nan.tif')
-noise_nan_3d = io.imread(Path('data') / 'nan' / 'noise_nan_3d.tif')
-noise_nan_zoom = io.imread(Path('data') / 'nan' / 'noise_nan_zoom.tif')
-noise_nan_3d_zoom = io.imread(Path('data') / 'nan' / 'noise_nan_3d_zoom.tif')
-noise_nan_hole = io.imread(Path('data') / 'nan' / 'noise_nan_hole.tif')
+mask = io.imread(DATA_PATH / 'mask.tif')
+mask_3d = io.imread(DATA_PATH / 'mask_3d.tif')
+mask_zoom = io.imread(DATA_PATH / 'mask_zoom.tif')
+mask_3d_zoom = io.imread(DATA_PATH / 'mask_3d_zoom.tif')
+noise_nan = io.imread(DATA_PATH / 'noise_nan.tif')
+noise_nan_3d = io.imread(DATA_PATH / 'noise_nan_3d.tif')
+noise_nan_zoom = io.imread(DATA_PATH / 'noise_nan_zoom.tif')
+noise_nan_3d_zoom = io.imread(DATA_PATH / 'noise_nan_3d_zoom.tif')
+noise_nan_hole = io.imread(DATA_PATH / 'noise_nan_hole.tif')
 
 #%% Test cases ----------------------------------------------------------------
 
-# Create fixture for test cases
-@pytest.fixture(params=[
+test_cases = [
     
     {# Test case 00 - 2d image & no mask
         'img': noise_nan, 'mask': None,
@@ -137,60 +140,71 @@ noise_nan_hole = io.imread(Path('data') / 'nan' / 'noise_nan_hole.tif')
         'filt_method': 'mean', 'iterations': 'inf',
         'parallel': True,
     },
+]
 
-])
+#%% Tests ---------------------------------------------------------------------
 
-def test_case(request):
+def compare_outputs(test_output, expected_output, function_name):
+    compare = np.array_equal(
+        test_output.astype('float32'), 
+        expected_output, 
+        equal_nan=True
+    )
+    assert compare, f"{function_name} failed"
+
+# nanfilt ---------------------------------------------------------------------
+
+@pytest.fixture(params=[
+    (i, test_case) for i, test_case
+    in enumerate(test_cases) if i not in [17, 18]])
+
+def nanfilt_params(request):
     return request.param
 
-#%% Test: nanfilt -------------------------------------------------------------
+def test_nanfilt(nanfilt_params):
+    # Unpack idx and test_cases
+    i, test_cases = nanfilt_params
 
-def test_nanfilt(test_case):
-    # Load expected outputs
-    expected_outputs = []
-    for path in Path('data', 'nan').iterdir():
-        if 'nanfilt_expected' in path.name:
-            expected_outputs.append(io.imread(path))
+    # Load expected output
+    expected_output_path = DATA_PATH / f'nanfilt_expected_output_{i:02d}.tif'
+    expected_output = io.imread(expected_output_path)
 
-    # Test cases
-    test_outputs = [] 
+    # Test case
     try:
-        test_outputs.append(nanfilt(**test_case))
+        test_output = nanfilt(**test_cases)
     except Exception as e:
         pytest.fail(f'nanfilt failed with error: {e}')
+        raise e
 
-    # Compare test & expected outputs
-    compare = np.array_equal(
-        test_outputs[-1].astype('float32'), 
-        expected_outputs[-1], 
-        equal_nan=True
-        )
+    compare_outputs(test_output, expected_output, 'nanfilt')
 
-    assert compare, f"nanfilt failed"
+# nanreplace ------------------------------------------------------------------
 
-#%% Test: nanreplace ----------------------------------------------------------
+@pytest.fixture(params=[
+    (i, test_case) for i, test_case
+    in enumerate(test_cases)])
 
-def test_nanreplace(test_case):
-    # Load expected outputs
-    expected_outputs = []
-    for path in Path('data', 'nan').iterdir():
-        if 'nanreplace_expected' in path.name:
-            expected_outputs.append(io.imread(path))
+def nanreplace_params(request):
+    return request.param
 
-    # Test cases
-    test_outputs = [] 
+def test_nanreplace(nanreplace_params):
+    # Unpack idx and test_cases
+    i, test_cases = nanreplace_params
+
+    # Load expected output
+    expected_output_path = DATA_PATH / f'nanreplace_expected_output_{i:02d}.tif'
+    expected_output = io.imread(expected_output_path)
+
+    # Test case
     try:
-        test_outputs.append(nanreplace(**test_case))
+        test_output = nanreplace(**test_cases)
     except Exception as e:
         pytest.fail(f'nanreplace failed with error: {e}')
+        raise e
 
-    # Compare test & expected outputs
-    compare = np.array_equal(
-        test_outputs[-1].astype('float32'), 
-        expected_outputs[-1], 
-        equal_nan=True
-        )
+    compare_outputs(test_output, expected_output, 'nanreplace')
 
-    assert compare, f"nanreplace failed"
+#%% Execute -------------------------------------------------------------------
 
-
+# if __name__ == "__main__":
+#     pytest.main([__file__])
