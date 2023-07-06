@@ -1,4 +1,4 @@
 # bdtools
 Collection of tools for recurring tasks
 
-![Tests](https://github.com/BDehapiot/bdtools/actions/workflows/test.yml/badge.svg)
+[![Test](https://github.com/BDehapiot/bdtools/actions/workflows/pytest.yml/badge.svg)](https://github.com/BDehapiot/bdtools/actions/workflows/pytest.yml)
