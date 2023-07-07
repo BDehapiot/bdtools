@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, windows-latest, macos-latest]
-        python-version: ['3.9', '3.10', '3.11']
+        python-version: ['3.10', '3.11']
 
     steps:
     
@@ -39,3 +39,6 @@ jobs:
     - name: Run tests
       run: |
         pytest
+
+    - name: Update README.md
+        run: python https://github.com/BDehapiot/bdtools/blob/main/scripts/dynamic_badges.py
