@@ -41,4 +41,4 @@ jobs:
         pytest
 
     - name: Update README.md
-        run: python scripts/dynamic_badges.py
+      run: python scripts/dynamic_badges.py
