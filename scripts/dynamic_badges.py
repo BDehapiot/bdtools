@@ -3,7 +3,7 @@
 import urllib.parse
 from pathlib import Path
 
-ROOT_PATH = Path(__file__).resolve().parents[1]
+ROOT_PATH = Path('.').resolve()
 WORKFLOWS_PATH = ROOT_PATH / '.github' / 'workflows'
 
 #%% 

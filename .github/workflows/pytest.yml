@@ -43,3 +43,11 @@ jobs:
     - name: Update README.md
       run: |
         python scripts/dynamic_badges.py
+
+    - name: Commit and push if it changed
+      run: |
+        git diff
+        git config --global user.email "actions@github.com"
+        git config --global user.name "GitHub Action"
+        git commit -am "Update README Python badge" || exit 0
+        git push
