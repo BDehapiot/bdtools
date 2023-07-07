@@ -30,6 +30,8 @@ def extract_list():
 
 def generate_badge_urls(os_list, python_list):
     
+    merged_python_str = 
+    
     python_badge_urls = [
         f"https://img.shields.io/badge/Python-{item}-blue" 
         for item in python_list
@@ -49,16 +51,25 @@ def generate_badge_urls(os_list, python_list):
 #             file.write(f"[![Python Version]({url})]({url}) ")
 #         file.write("\n")
         
-def update_readme_badges(badge_urls):
-    formatted_badges = " | ".join(f"[![Badge]({url})]({url})" for url in badge_urls)
+# def update_readme_badges(badge_urls):
+#     formatted_badges = " | ".join(f"[![Badge]({url})]({url})" for url in badge_urls)
     
-    with open(ROOT_PATH / 'README.md', "a") as file:
-        file.write("\n\n")
-        file.write(formatted_badges)
-        file.write("\n")
+#     with open(ROOT_PATH / 'README.md', "a") as file:
+#         file.write("\n\n")
+#         file.write(formatted_badges)
+#         file.write("\n")
+
+# def update_readme_badges(badge_urls):
+#     python_versions_merged = " | ".join(python_versions)
+#     badge_url = f"https://img.shields.io/badge/Python-{python_versions_merged}-blue"
+
+#     with open(ROOT_PATH / 'README.md', "a") as file:
+#         file.write("\n\n")
+#         file.write(f"[![Python Versions]({badge_url})]({badge_url})")
+#         file.write("\n")
 
 #%%
 
 os_list, python_list = extract_list()
 os_badge_urls, python_badge_urls = generate_badge_urls(os_list, python_list)
-update_readme_badges(python_badge_urls)
+# update_readme_badges(python_badge_urls)
