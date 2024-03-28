@@ -4,7 +4,7 @@ import urllib.parse
 from pathlib import Path
 
 ROOT_PATH = Path('.').resolve()
-ROOT_PATH = Path('.').resolve().parents[0] # local execution
+# ROOT_PATH = Path('.').resolve().parents[0] # local execution
 SCRIPTS_PATH = ROOT_PATH / 'scripts'
 WORKFLOWS_PATH = ROOT_PATH / '.github' / 'workflows'
 
