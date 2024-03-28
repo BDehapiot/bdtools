@@ -1,5 +1,6 @@
 #%% Imports -------------------------------------------------------------------
 
+import sys
 import pytest
 import numpy as np
 from skimage import io 
@@ -7,6 +8,7 @@ from pathlib import Path
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'skel'
+sys.path.insert(0, str(ROOT_PATH))
 
 from bdtools.skel import pixconn, labconn
 
