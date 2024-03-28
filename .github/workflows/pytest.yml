@@ -39,16 +39,3 @@ jobs:
     - name: Run tests
       run: |
         pytest
-
-    - name: Update README.md
-      run: |
-        python scripts/update_readme.py
-
-    - name: Commit and push if it changed
-      run: |
-        git diff
-        git config --global user.email "actions@github.com"
-        git config --global user.name "GitHub Action"
-        git commit -am "Update README Python badge" || true
-        git pull --rebase
-        git push
