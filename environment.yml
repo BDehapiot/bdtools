@@ -4,11 +4,16 @@ channels:
   - conda-forge
       
 dependencies:
-  - python=3.10
-  - numpy=1.23.*
+  - python=3.11
+  - numpy=1.24.*
   - scipy
   - scikit-image
-  - matplotlib-base=3.6.*
   - joblib
   - numba
   - pytest
+  - spyder
+  - pip
+  - pip:
+      - setuptools>=58.0.0
+      - wheel
+      - twine
