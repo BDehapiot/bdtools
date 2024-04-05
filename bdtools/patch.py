@@ -8,12 +8,11 @@ from joblib import Parallel, delayed
 def extract_patches(arr, size, overlap):
     
     """ 
-    Extract patches from ndarrays.    
+    Extract patches from 2D or 3D ndarray.    
     
-    This function extracts square 2D patches of a given size with a specified
-    overlap from a 2D or 3D ndarray. For 3D array, patches are extracted 
-    from each 2D slice along the first dimension. If necessary, the input 
-    array is padded using 'reflect' padding mode.
+    For 3D array, patches are extracted from each 2D slice along the first 
+    dimension. If necessary, the input array is padded using 'reflect' 
+    padding mode.
     
     Parameters
     ----------
@@ -74,36 +73,35 @@ def extract_patches(arr, size, overlap):
 
 #%% Function: merge_patches ---------------------------------------------------
 
-def merge_patches(patches, shape, size, overlap):
+def merge_patches(patches, shape, overlap):
     
-    # """ 
-    # Reassemble a ndarray from patches 
-    # Merge patches from extract_patches() to reassemble the original ndarray.    
+    """ 
+    Reassemble a 2D or 3D ndarray from extract_patches().
     
-    # The function reassemble a 2D or 3D ndarray from patches extracted with the
-    # extract_patches() function. The shape of the original array, as well as the 
-    # size and the overlap of extracted patches must be passed as arguments to 
-    # instruct the reassembly process. Padded areas are discarded in the process.
+    The shape of the original array and the overlap between patches used with
+    extract_patches() must be provided to instruct the reassembly process. 
+    Padded areas are discarded.
     
-    # Parameters
-    # ----------
-    # patches : list of ndarrays
-    #     Array to be patched.
+    Parameters
+    ----------
+    patches : list of ndarrays
+        List containing extracted patches.
         
-    # size : int
-    #     Size of extracted patches.
+    shape : tuple of int
+        Shape of the original ndarray.
         
-    # overlap : int
-    #     Overlap between patches (Must be between 0 and size - 1).
+    overlap : int
+        Overlap between patches (Must be between 0 and size - 1).
                 
-    # Returns
-    # -------  
-    # patches : list of ndarrays
-    #     List containing extracted patches
+    Returns
+    -------
+    arr : 2D or 3D ndarray
+        Reassembled array.
     
-    # """
+    """
     
-    # Get dimensions 
+    # Get size & dimensions 
+    size = patches[0].shape[0]
     if len(shape) == 2: 
         nT = 1; 
         nY, nX = shape

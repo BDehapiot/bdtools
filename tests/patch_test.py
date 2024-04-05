@@ -33,7 +33,7 @@ for i in range(50):
     # t0 = time.time()
     # arr = np.random.rand(*shape)
     # patches = extract_patches(arr, size, overlap)
-    # merged_arr = merge_patches(patches, shape, size, overlap)
+    # merged_arr = merge_patches(patches, shape, overlap)
     # t1 = time.time()
     # print(f"{i:02d} - {(t1-t0):<5.2f}s") 
 
@@ -43,7 +43,7 @@ for i in range(50):
 def test_patches(shape, size, overlap):
     arr = np.random.rand(*shape)
     patches = extract_patches(arr, size, overlap)
-    merged_arr = merge_patches(patches, shape, size, overlap)
+    merged_arr = merge_patches(patches, shape, overlap)
     assert np.array_equal(arr, merged_arr), "Merged array differs from original"
 
 #%% Execute -------------------------------------------------------------------
