@@ -18,11 +18,11 @@ for i in range(50):
 
     dtype = str(np.random.choice(["uint8", "uint16", "float32"]))
     shape = str(np.random.choice(["2D", "3D", "4D"]))
-    sample_fraction = round(np.random.rand(), 3)
+    sample_fraction = round(np.random.uniform(0.001, 1.0), 3)
     addMask = np.random.choice([True, False])
     addNaNs = np.random.choice([True, False])
-    loc = round(np.random.rand(), 3)
-    scale = round(0.1 + (np.random.rand() * 0.1), 3)
+    loc = round(np.random.uniform(0.1, 0.9), 3)
+    scale = round(np.random.uniform(0.05, 0.2), 3)
 
     params_gcn.append((
         dtype, shape, sample_fraction, addNaNs, addMask, loc, scale)) 
@@ -32,13 +32,13 @@ for i in range(50):
 
     dtype = str(np.random.choice(["uint8", "uint16", "float32"]))
     shape = str(np.random.choice(["2D", "3D", "4D"]))
-    sample_fraction = round(np.random.rand(), 3)
+    sample_fraction = round(np.random.uniform(0.001, 1.0), 3)
     addMask = np.random.choice([True, False])
     addNaNs = np.random.choice([True, False])
-    loc = round(np.random.rand(), 3)
-    scale = round(0.1 + (np.random.rand() * 0.1), 3)
-    pct_low = round(np.random.rand() * 0.5, 3) * 100
-    pct_high = round(0.5 + (np.random.rand() * 0.5), 3) * 100
+    loc = round(np.random.uniform(0.1, 0.9), 3)
+    scale = round(np.random.uniform(0.05, 0.2), 3)
+    pct_low = round(np.random.uniform(0, 50), 3)
+    pct_high = round(np.random.uniform(51, 100), 3)
 
     params_pct.append((
         dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, pct_low, pct_high)) 

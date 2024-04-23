@@ -124,9 +124,9 @@ def norm_pct(
     val = val[~np.isnan(val)]
     
     # Normalize
-    if pct_low == 0: pLow = np.min(arr)
+    if pct_low == 0: pLow = np.nanmin(arr)
     else: pLow = np.percentile(val, pct_low)
-    if pct_high == 100: pHigh = np.max(arr)
+    if pct_high == 100: pHigh = np.nanmax(arr)
     else: pHigh = np.percentile(val, pct_high)
     np.clip(arr, pLow, pHigh, out=arr)
     arr -= pLow
