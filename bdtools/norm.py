@@ -6,6 +6,33 @@ import numpy as np
 
 def norm_gcn(arr, sample_fraction=1, mask=None):
     
+    """ 
+    Global contrast normalization.
+
+    Array is normalized by substracting the mean and dividing by the 
+    standard deviation. Calculation can be restricted to a random fraction 
+    (sample_fraction) and/or a given selection (mask). NaNs are ignored.
+    
+    Parameters
+    ----------
+    arr : ndarray (uint8, uint16 or float)
+        Array to be normalized.
+        
+    sample_fraction : float
+        Fraction of the array to be considered for mean and standard deviation
+        calculation. Must be between 0 and 1.
+        
+    mask : ndarray (bool)
+        Selection of the array to be considered for mean and standard deviation
+        calculation. Mask and array must be of the same shape.
+                
+    Returns
+    -------  
+    arr : ndarray (float)
+        Normalized array
+    
+    """
+    
     # Check inputs
     if arr.dtype != "float32":
         arr = arr.astype("float32")
@@ -28,131 +55,81 @@ def norm_gcn(arr, sample_fraction=1, mask=None):
     
     return arr
 
-#%% Test cases ----------------------------------------------------------------
+#%% Function: norm_pct --------------------------------------------------------
 
-params = []
-for i in range(50):
-
-    dtype = str(np.random.choice(["uint8", "uint16", "float32"]))
-    shape = str(np.random.choice(["2D", "3D", "4D"]))
-    sample_fraction = np.random.rand()
-    addMask = np.random.choice([True, False])
-    addNaNs = np.random.choice([True, False])
-    loc = np.random.rand()
-    scale = np.random.rand() * 0.2
-
-    params.append((
-        dtype, shape, sample_fraction, addNaNs, addMask, loc, scale))  
-
-#%% Tests ---------------------------------------------------------------------
-
-import pytest
-
-@pytest.mark.parametrize(
-    "dtype, shape, sample_fraction, addNaNs, addMask, loc, scale", params)
-def test_norm_gcn(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale):
+def norm_pct(
+        arr,
+        pct_low=0.01,
+        pct_high=99.99,
+        sample_fraction=1,
+        mask=None
+        ):
     
-    # Get shape
-    if shape == "2D": 
-        size = (256, 256)
-    if shape == "3D": 
-        size = (5, 256, 256)
-    if shape == "4D": 
-        size = (2, 5, 256, 256)
+    """ 
+    Percentile normalization.
+
+    Array is normalized from 0 to 1 considering a range determined by a low and
+    a high percentile value (pct_low and pct_high). Out of range values are 
+    clipped and NaNs are ignored. Calculation can be restricted to a random 
+    fraction (sample_fraction) and/or a given selection (mask).
+
+    Parameters
+    ----------
+    arr : ndarray (uint8, uint16 or float)
+        Array to be normalized.
         
-    # Generate random array
-    if dtype == "float32":
-        maxInt = 1
-    if dtype == "uint8":
-        maxInt = 255
-    if dtype == "uint16":    
-        maxInt = 65535
-    arr = np.random.normal(
-        loc=loc * maxInt, scale=scale * maxInt, size=size)
-    arr = np.clip(arr, 0, maxInt)
-    
-    # Generate random mask
-    if addMask:
-        mask = np.random.choice([True, False], size=size)
-    else:
-        mask = None
+    pct_low : float
+        Percentile to determine the low value of the normalization range.
+        pct_low must be >= 0 and < pct_high. If pct_low == 0, low value is 
+        equal to the minimum value of the array. 
+
+    pct_high : float
+        Percentile to determine the high value of the normalization range.
+        pct_high must be > pct_low and <= 100. If pct_high == 100, high value 
+        is equal to the maximum value of the array.
         
-    # Generate random NaNs
-    if addNaNs:
-        nan_idx = np.random.choice(
-            arr.size, int(arr.size * 0.1), replace=False)
-        nan_idx = np.unravel_index(nan_idx, size)
-        arr[nan_idx] = np.nan
-    
-    # Tests
-    try:
-        arr_norm = norm_gcn(arr, sample_fraction=sample_fraction, mask=mask)
+    sample_fraction : float
+        Fraction of the array to be considered for mean and standard deviation
+        calculation. Must be between 0 and 1.
         
-        # Check mean and standard deviation
-        atol = 0.01
-        mean, std = np.nanmean(arr_norm), np.nanstd(arr_norm)
-        assert np.isclose(mean, 0, atol=atol), f"mean = {mean:.3f} is not close enough to 0 (tolerance = {atol})"
-        assert np.isclose(std, 1, atol=atol), f"std = {std:.3f} is not close enough to 1 (tolerance = {atol})"
-    except Exception as e:
-        pytest.fail(f"An error occurred: {str(e)}")
+    mask : ndarray (bool)
+        Selection of the array to be considered for mean and standard deviation
+        calculation. Mask and array must be of the same shape.
+                
+    Returns
+    -------  
+    arr : ndarray (float)
+        Normalized array
     
-#%% Execute -------------------------------------------------------------------
-
-if __name__ == "__main__":
-    pytest.main([__file__])
-
-#%% -----------------------------------------------------------------------------
-
-import time
-import napari
-import matplotlib.pyplot as plt
-
-# -----------------------------------------------------------------------------
-
-# Create random array
-dtype = "uint8" # "uint16"
-loc = np.random.rand()
-scale = np.random.rand() * 0.2
-if dtype == "float32":
-    maxInt = 1
-if dtype == "uint8":
-    maxInt = 255
-if dtype == "uint16":    
-    maxInt = 65535
-arr = np.random.normal(
-    loc=loc * maxInt, scale=scale * maxInt, size=(256, 256))
-arr = np.clip(arr, 0, maxInt)
+    """
     
-# # Add NaNs
-# nan_idx = np.random.choice(arr.size, int(arr.size * 0.1), replace=False)
-# nan_idx = np.unravel_index(nan_idx, shape)
-# arr[nan_idx] = np.nan
-
-# Normalize
-arr_norm = norm_gcn(arr)
-
-# Test
-print(np.mean(arr_norm))
-print(np.std(arr_norm))
-
-# -----------------------------------------------------------------------------
-
-fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(6, 12))
-
-# Plot histogram for raw array
-axes[0].hist(arr.ravel(), bins=100)
-axes[0].set_title('Histogram raw array')
-# axes[0].set_xlim([0, 255])
-axes[0].set_xlabel('Pixel Intensity')
-axes[0].set_ylabel('Frequency')
-
-# Plot histogram for normalized array
-axes[1].hist(arr_norm.ravel(), bins=100)
-axes[1].set_title('Histogram normalized array')
-# axes[1].set_xlim([0, 255])
-axes[1].set_xlabel('Pixel Intensity')
-axes[1].set_ylabel('Frequency')
-
-plt.show()
-
-#%%
+    # Check inputs
+    if arr.dtype != "float32":
+        arr = arr.astype("float32")
+    if pct_low < 0 or pct_low >= pct_high:
+        raise ValueError("pct_low should be >= 0 and < pct_high")
+    if pct_high > 100 or pct_high <= pct_low:
+        raise ValueError("pct_high should be <= 100 and > pct_low")
+    if sample_fraction < 0 or sample_fraction > 1:
+        raise ValueError("sample_fraction should be float between 0 and 1")
+    if mask is not None and mask.shape != arr.shape:
+        raise ValueError("array and mask should have the same shape")
+        
+    # Extract values
+    val = arr.ravel()
+    if mask is not None:
+        val = val[mask.ravel()]
+    if sample_fraction < 1:
+        val = np.random.choice(val, size=int(arr.size * sample_fraction))
+    val = val[~np.isnan(val)]
+    
+    # Normalize
+    if pct_low == 0: pLow = np.min(arr)
+    else: pLow = np.percentile(val, pct_low)
+    if pct_high == 100: pHigh = np.max(arr)
+    else: pHigh = np.percentile(val, pct_high)
+    np.clip(arr, pLow, pHigh, out=arr)
+    arr -= pLow
+    arr /= (pHigh - pLow)
+        
+    return arr
