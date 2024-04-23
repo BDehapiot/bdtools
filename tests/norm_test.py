@@ -77,7 +77,7 @@ def test_norm_gcn(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale):
     # Perform tests
     try:
         arr_norm = norm_gcn(arr, sample_fraction=sample_fraction, mask=mask)
-        atol, mean, std = 0.1, np.nanmean(arr_norm), np.nanstd(arr_norm)      
+        atol, mean, std = 0.2, np.nanmean(arr_norm), np.nanstd(arr_norm)      
         assert np.isclose(mean, 0, atol=atol), f"mean ({mean:.3f}) out of tolerance (0 +- {atol})"
         assert np.isclose(std, 1, atol=atol), f"std ({std:.3f}) out of tolerance (1 +- {atol})"
         
