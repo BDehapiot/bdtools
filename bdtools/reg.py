@@ -20,6 +20,7 @@ def preprocess(arr, cf=1, rf=1, norm=True):
     
     # Crop
     if cf < 1:
+        
         nY, nX = arr.shape[-2], arr.shape[-1]
         y0 = int(nY / 2 - ((nY * cf) / 2))
         y1 = int(y0 + nY * cf)
@@ -29,11 +30,12 @@ def preprocess(arr, cf=1, rf=1, norm=True):
     
     # Rescale
     if rf < 1:
+        
         arr = rescale(arr, (1, rf, rf), order=0)
         
     return arr     
 
-#%% Test ----------------------------------------------------------------------
+#%%
 
 idx0, idx1 = 0, 20
 
@@ -50,7 +52,7 @@ for i in range(idx0, idx1):
 arr = np.stack(arr)
 
 # Preprocess
-arr = preprocess(arr, cf=0.25, rf=0.25)
+arr = preprocess(arr, cf=1, rf=1)
 
 #%% Display -------------------------------------------------------------------
 
