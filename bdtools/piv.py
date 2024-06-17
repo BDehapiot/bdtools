@@ -28,13 +28,13 @@ def get_piv(
             for x, (iXi, sXi) in enumerate(zip(intXi, srcXi)):
                 
                 # Extract mask int. window 
-                maskWin = mask[iYi:iYi+intSize,iXi:iXi+intSize]
+                maskWin = mask[iYi:iYi + intSize, iXi:iXi + intSize]
                 
                 if np.mean(maskWin) >= maskCutOff:
                 
                     # Extract int. & src. window
-                    intWin = ref[iYi:iYi+intSize,iXi:iXi+intSize]
-                    srcWin = img[sYi:sYi+srcSize,sXi:sXi+srcSize]           
+                    intWin = ref[iYi:iYi + intSize, iXi:iXi + intSize]
+                    srcWin = img[sYi:sYi + srcSize, sXi:sXi + srcSize]           
         
                     # Compute 2D correlation
                     corr2D = correlate(
@@ -45,13 +45,13 @@ def get_piv(
                     
                     # Find max corr. and infer uv components
                     y_max, x_max = np.unravel_index(corr2D.argmax(), corr2D.shape)            
-                    vecU[y,x] = x_max-(intSize-1)-(srcSize//2-intSize//2)
-                    vecV[y,x] = y_max-(intSize-1)-(srcSize//2-intSize//2)
+                    vecU[y, x] = x_max - (intSize - 1) - (srcSize // 2 - intSize // 2)
+                    vecV[y, x] = y_max - (intSize - 1) - (srcSize // 2 - intSize // 2)
                     
                 else:
                     
-                    vecU[y,x] = np.nan
-                    vecV[y,x] = np.nan
+                    vecU[y, x] = np.nan
+                    vecV[y, x] = np.nan
         
         return vecU, vecV
         
@@ -70,8 +70,8 @@ def get_piv(
     if binning > 1:
     
         # Parameters
-        intSize = intSize//binning
-        srcSize = srcSize//binning 
+        intSize = intSize // binning
+        srcSize = srcSize // binning 
         if intSize % 2 != 0:
             intSize += intSize % 2
             print(f'interrogation window size adjusted to {intSize * binning}')
@@ -80,26 +80,28 @@ def get_piv(
             print(f'search window size adjusted to {srcSize * binning}')  
     
         # Data
-        arr = rescale(arr, (1, 1/binning, 1/binning), preserve_range=True)
-        if mask.ndim == 2: mask = rescale(mask, (1/binning, 1/binning), order=0)
-        if mask.ndim == 3: mask = rescale(mask, (1, 1/binning, 1/binning), order=0)
+        arr = rescale(arr, (1, 1 / binning, 1 / binning), preserve_range=True)
+        if mask.ndim == 2: 
+            mask = rescale(mask, (1 / binning, 1 / binning), order=0)
+        if mask.ndim == 3: 
+            mask = rescale(mask, (1, 1 / binning, 1 / binning), order=0)
     
     # Define src. pad
-    srcPad = (srcSize-intSize)//2
+    srcPad = (srcSize - intSize) // 2
     
     # Count number of int. window
-    intYn = (arr.shape[1]-srcPad*2)//intSize
-    intXn = (arr.shape[2]-srcPad*2)//intSize
+    intYn = (arr.shape[1] - srcPad*2) // intSize
+    intXn = (arr.shape[2] - srcPad*2) // intSize
     
     # Setup int. & src. window coordinates
     intYi = np.arange(
-        (arr.shape[1]-intYn*intSize)//2, 
-        (arr.shape[1]-intYn*intSize)//2 + intYn*intSize, 
+        (arr.shape[1] - intYn*intSize) // 2, 
+        (arr.shape[1] - intYn*intSize) // 2 + intYn*intSize, 
         intSize,
         )
     intXi = np.arange(
-        (arr.shape[2]-intXn*intSize)//2, 
-        (arr.shape[2]-intXn*intSize)//2 + intXn*intSize, 
+        (arr.shape[2] - intXn*intSize) // 2, 
+        (arr.shape[2] - intXn*intSize) // 2 + intXn*intSize, 
         intSize,
         )
     srcYi = intYi - srcPad
@@ -109,23 +111,17 @@ def get_piv(
     if parallel:
         
         output_list = Parallel(n_jobs=-1)(
-        delayed(_get_piv)(
-            arr[t,...],
-            arr[t-1,...], 
-            mask[t,...],
+            delayed(_get_piv)(
+                arr[t, ...], arr[t - 1, ...], mask[t, ...])
+            for t in range(1, arr.shape[0])
             )
-        for t in range(1, arr.shape[0])
-        )
-        
+                
     else:
         
         output_list = [_get_piv(
-            arr[t,...],
-            arr[t-1,...],
-            mask[t,...],
-            )
-        for t in range(1, arr.shape[0])
-        ]
+            arr[t, ...], arr[t - 1, ...], mask[t, ...])
+            for t in range(1, arr.shape[0])
+            ]
         
     # Fill output dictionary    
     output_dict = {
