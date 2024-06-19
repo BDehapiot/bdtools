@@ -3,13 +3,14 @@
 import sys
 import pytest
 import numpy as np
+from skimage import io
 from pathlib import Path
 
 # Skimage
 from skimage.filters import gaussian
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
-DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'patch'
+DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'flow'
 sys.path.insert(0, str(ROOT_PATH))
 
 from bdtools.flow import get_piv
@@ -65,10 +66,10 @@ def transform_coordinates(
 #%% Function: (generate_flow_stack) -------------------------------------------
 
 def generate_flow_stack(
-        nPoints=1024, nFrames=8, shape=(512, 512), sigma=5,
-        dCoords=0.005, dValues=0.1, 
+        nPoints=2048, nFrames=8, shape=(512, 512), sigma=5,
+        dCoords=0.01, dValues=0.1, 
         dTrans=0.01, dAngle=5, dCenter=0.25, 
-        noiseAvg=0.1, noiseStd=0.001,
+        noiseAvg=0.1, noiseStd=0.01,
         ):
 
     # Initialize
@@ -82,12 +83,12 @@ def generate_flow_stack(
     # Coordinates & values
     yCoords_ref = np.random.randint(yCoordShift, shape[0] - yCoordShift, nPoints)
     xCoords_ref = np.random.randint(xCoordShift, shape[1] - yCoordShift, nPoints)
-    values_ref = np.random.random(nPoints)
+    values_ref = np.random.uniform(0.5, 1, nPoints)
     
     # Transformations (translation & rotation)
-    yTrans = (np.random.random(nFrames) - 0.5) * 2 * yTransShift
-    xTrans = (np.random.random(nFrames) - 0.5) * 2 * xTransShift
-    rotAngles = (np.random.random(nFrames) - 0.5) * 2 * dAngle 
+    yTrans = np.random.uniform(-1, 1, nPoints) * yTransShift
+    xTrans = np.random.uniform(-1, 1, nPoints) * xTransShift
+    rotAngles = np.random.uniform(-1, 1, nPoints) * dAngle 
     rotCenters = (        
         np.random.randint(-shape[0] * dCenter, shape[0] * (1 + dCenter), nFrames),
         np.random.randint(-shape[1] * dCenter, shape[1] * (1 + dCenter), nFrames),
@@ -98,7 +99,7 @@ def generate_flow_stack(
         # Update coordinates & values (fluctuations)
         yCoords = yCoords_ref + np.random.randint(-yCoordShift, yCoordShift, nPoints)
         xCoords = xCoords_ref + np.random.randint(-xCoordShift, xCoordShift, nPoints)
-        values = values_ref + (np.random.random(nPoints) - 0.5) * dValues
+        values = values_ref + np.random.uniform(-dValues, dValues, nPoints)
     
         # Transform coordinates
         yCoords, xCoords = transform_coordinates(
@@ -120,7 +121,8 @@ def generate_flow_stack(
         # Generate random image
         img = np.zeros(shape)
         img[yCoords, xCoords] = values
-        img = gaussian(img, sigma=sigma)
+        img = gaussian(img, sigma=sigma, preserve_range=True)
+        img = img / np.max(img)
         
         # Add noise
         img = img + np.random.normal(noiseAvg, noiseStd, shape)
@@ -147,16 +149,20 @@ def generate_flow_stack(
 
 #%% Test cases ----------------------------------------------------------------
 
+# Random data
 stack, tData = generate_flow_stack(
-        nPoints=4096, nFrames=8, shape=(512, 512), sigma=2,
+        nPoints=2048, nFrames=8, shape=(512, 512), sigma=2,
         dCoords=0.001, dValues=0.1, 
-        dTrans=0.005, dAngle=2, dCenter=0.25, 
-        noiseAvg=0.01, noiseStd=0.001,
+        dTrans=0.001, dAngle=2, dCenter=0.25, 
+        noiseAvg=0.1, noiseStd=0.01,
         )
+
+# # Real data
+# stack = io.imread(DATA_PATH / "GBE_eCad.tif")
 
 outputs = get_piv(
         stack,
-        intSize=32, srcSize=64, binning=1,
+        intSize=32, srcSize=128, binning=1,
         mask=None, maskCutOff=1,
         parallel=True
         )
