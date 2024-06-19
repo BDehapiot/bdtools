@@ -151,10 +151,10 @@ def generate_flow_stack(
 
 # Random data
 stack, tData = generate_flow_stack(
-        nPoints=2048, nFrames=8, shape=(512, 512), sigma=2,
+        nPoints=2048, nFrames=8, shape=(512, 512), sigma=5,
         dCoords=0.001, dValues=0.1, 
-        dTrans=0.001, dAngle=2, dCenter=0.25, 
-        noiseAvg=0.1, noiseStd=0.01,
+        dTrans=0.001, dAngle=1, dCenter=0.25, 
+        noiseAvg=0.1, noiseStd=0.05,
         )
 
 # # Real data
@@ -162,7 +162,7 @@ stack, tData = generate_flow_stack(
 
 outputs = get_piv(
         stack,
-        intSize=32, srcSize=128, binning=1,
+        intSize=64, srcSize=128, binning=1,
         mask=None, maskCutOff=1,
         parallel=True
         )
