@@ -40,7 +40,7 @@ def get_piv(
                     corr2D = correlate(
                         srcWin - np.mean(srcWin), 
                         intWin - np.mean(intWin),
-                        method='fft'
+                        method="fft"
                         )
                     
                     # Find max corr. and infer uv components
@@ -53,7 +53,7 @@ def get_piv(
                     vecU[y, x] = np.nan
                     vecV[y, x] = np.nan
         
-        return vecU, vecV
+        return vecU, vecV, corr2D
         
     # Execute -----------------------------------------------------------------
 
@@ -74,10 +74,10 @@ def get_piv(
         srcSize = srcSize // binning 
         if intSize % 2 != 0:
             intSize += intSize % 2
-            print(f'interrogation window size adjusted to {intSize * binning}')
+            print(f"interrogation window size adjusted to {intSize * binning}")
         if srcSize % 2 != 0:
             srcSize += srcSize % 2
-            print(f'search window size adjusted to {srcSize * binning}')  
+            print(f"search window size adjusted to {srcSize * binning}")  
     
         # Data
         arr = rescale(arr, (1, 1 / binning, 1 / binning), preserve_range=True)
@@ -127,17 +127,18 @@ def get_piv(
     output_dict = {
     
         # Parameters
-        'intSize': intSize * binning,
-        'srcSize': srcSize * binning,
-        'binning': binning,
-        'maskCutOff': maskCutOff,
+        "intSize" : intSize * binning,
+        "srcSize" : srcSize * binning,
+        "binning" : binning,
+        "maskCutOff" : maskCutOff,
         
         # Data
-        'intYi': intYi * binning,
-        'intXi': intXi * binning,
-        'vecU': np.stack([data[0] for data in output_list], axis=0) * binning,
-        'vecV': np.stack([data[1] for data in output_list], axis=0) * binning,
-        'mask': mask
+        "intYi" : intYi * binning,
+        "intXi" : intXi * binning,
+        "vecU" : np.stack([data[0] for data in output_list], axis=0) * binning,
+        "vecV" : np.stack([data[1] for data in output_list], axis=0) * binning,
+        "corr2D" : np.stack([data[2] for data in output_list], axis=0), 
+        "mask" : mask
 
     }
         
@@ -152,11 +153,37 @@ def filt_piv(
         parallel=False,
         ):
     
+    # Nested function ---------------------------------------------------------
+    
+    def smooth_piv(vec):
+        
+        vec = nanreplace(
+            vec, 
+            mask=nanmask,
+            kernel_size=kernel_size,
+            kernel_shape="ellipsoid",
+            filt_method="mean", 
+            iterations="inf",
+            parallel=parallel,
+            )
+
+        vec = nanfilt(
+            vec, 
+            mask=nanmask,
+            kernel_size=kernel_size,
+            kernel_shape="ellipsoid",
+            filt_method="mean", 
+            iterations=iterations_smooth,
+            parallel=parallel,
+            )
+        
+        return vec
+    
     # Execute -----------------------------------------------------------------
 
     # Extract data & parameters
-    vecU = output_dict['vecU']
-    vecV = output_dict['vecV']
+    vecU = output_dict["vecU"]
+    vecV = output_dict["vecV"]
     kernel_size = (temporal_smooth, spatial_smooth, spatial_smooth)
 
     # Extract nanmask 
@@ -164,57 +191,21 @@ def filt_piv(
 
     # Replace outliers with NaNs
     for u, v in zip(vecU, vecV):
-        z_u = np.abs(zscore(u, axis=None, nan_policy='omit'))
-        z_v = np.abs(zscore(v, axis=None, nan_policy='omit'))
+        z_u = np.abs(zscore(u, axis=None, nan_policy="omit"))
+        z_v = np.abs(zscore(v, axis=None, nan_policy="omit"))
         u[(z_u > outlier_cutoff) | (z_v > outlier_cutoff)] = np.nan
         v[(z_u > outlier_cutoff) | (z_v > outlier_cutoff)] = np.nan
 
-    vecU = nanreplace(
-        vecU, 
-        mask=nanmask,
-        kernel_size=kernel_size,
-        kernel_shape='ellipsoid',
-        filt_method='mean', 
-        iterations='inf',
-        parallel=parallel,
-        )
-
-    vecU = nanfilt(
-        vecU, 
-        mask=nanmask,
-        kernel_size=kernel_size,
-        kernel_shape='ellipsoid',
-        filt_method='mean', 
-        iterations=iterations_smooth,
-        parallel=parallel,
-        )
-
-    vecV = nanreplace(
-        vecV, 
-        mask=nanmask,
-        kernel_size=kernel_size,
-        kernel_shape='ellipsoid',
-        filt_method='mean', 
-        iterations='inf',
-        parallel=parallel,
-        )
-
-    vecV = nanfilt(
-        vecV, 
-        mask=nanmask,
-        kernel_size=kernel_size,
-        kernel_shape='ellipsoid',
-        filt_method='mean', 
-        iterations=iterations_smooth,
-        parallel=parallel,
-        )
+    # Smooth data
+    vecU = smooth_piv(vecU)
+    vecV = smooth_piv(vecV)
     
     # Updating output dictionary 
-    output_dict.update({'vecU': vecU})
-    output_dict.update({'vecV': vecV})
-    output_dict.update({'outlier_cutoff': outlier_cutoff})
-    output_dict.update({'spatial_smooth': spatial_smooth})
-    output_dict.update({'temporal_smooth': temporal_smooth})
-    output_dict.update({'iterations_smooth': iterations_smooth})
+    output_dict.update({"vecU": vecU})
+    output_dict.update({"vecV": vecV})
+    output_dict.update({"outlier_cutoff": outlier_cutoff})
+    output_dict.update({"spatial_smooth": spatial_smooth})
+    output_dict.update({"temporal_smooth": temporal_smooth})
+    output_dict.update({"iterations_smooth": iterations_smooth})
     
     return output_dict
