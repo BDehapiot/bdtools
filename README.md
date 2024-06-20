@@ -3,8 +3,5 @@
 # bdtools
 Collection of tools for recurring tasks
 
-## Content
-- **nan**
-- **skel**
-- norm
-- patch
+## Bugs
+- nanreplace : avoid error if no nan to replace (with iterations = "inf")

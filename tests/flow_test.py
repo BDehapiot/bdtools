@@ -14,7 +14,7 @@ ROOT_PATH = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'flow'
 sys.path.insert(0, str(ROOT_PATH))
 
-from bdtools.flow import get_piv, filt_piv
+from bdtools.flow import get_piv, filt_piv, plot_piv
 
 #%% Function: (transform_coordinates) -----------------------------------------
 
@@ -157,6 +157,9 @@ def generate_flow_stack(
 #         dTrans=0.001, dAngle=1, dCenter=0.25, 
 #         noiseAvg=0.1, noiseStd=0.05,
 #         )
+# mask = None
+
+# -----------------------------------------------------------------------------
 
 # Real data
 stack = io.imread(DATA_PATH / "GBE_eCad.tif")
@@ -169,7 +172,7 @@ print(" - get_piv : ", end='')
 
 outputs = get_piv(
         stack,
-        intSize=48, srcSize=96, binning=1,
+        intSize=32, srcSize=64, binning=1,
         mask=mask, maskCutOff=0.5,
         parallel=True
         )
@@ -177,37 +180,37 @@ outputs = get_piv(
 t1 = time.time()
 print(f"{(t1-t0):<5.2f}s")
 
+# -----------------------------------------------------------------------------
+
 t0 = time.time(); 
 print(" - filt_piv : ", end='')
 
 outputs = filt_piv(
         outputs,
         outlier_cutoff=1.5,
-        spatial_smooth=3, temporal_smooth=1, iterations_smooth=1,
+        spatial_smooth=5, temporal_smooth=3, iterations_smooth=1,
         parallel=False,
         )
 
 t1 = time.time()
 print(f"{(t1-t0):<5.2f}s")
 
-#%% 
+# -----------------------------------------------------------------------------
 
-# intSize = outputs["intSize"]
-# intYi, intXi = outputs["intYi"], outputs["intXi"]
-# vecU, vecV = outputs["vecU"][0], outputs["vecV"][0]
+t0 = time.time(); 
+print(" - plot_piv : ", end='')
 
-# intYc = intYi + intSize // 2
-# intXc = intXi + intSize // 2
+plot = plot_piv(stack, outputs)
 
-# vecU_c = np.zeros()
-
-
+t1 = time.time()
+print(f"{(t1-t0):<5.2f}s")
 
 #%%
 
 import napari
 viewer = napari.Viewer()
-viewer.add_image(stack)
-viewer = napari.Viewer()
-viewer.add_image(outputs["vecU"], name="vecU", contrast_limits=(-5, 5))
-viewer.add_image(outputs["vecV"], name="vecV", contrast_limits=(-5, 5))
+# viewer.add_image(stack)
+viewer.add_image(plot)
+# viewer = napari.Viewer()
+# viewer.add_image(outputs["vecU"], name="vecU", contrast_limits=(-5, 5))
+# viewer.add_image(outputs["vecV"], name="vecV", contrast_limits=(-5, 5))
