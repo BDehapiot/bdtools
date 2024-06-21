@@ -242,9 +242,9 @@ def plot_piv(
         title = "flow",
         
         # Units
-        pixel_size = 0.4,
+        pixel_size = 0.08,
         space_unit = "µm",
-        time_interval = 1 / 3,
+        time_interval = 1 / 12,
         time_unit = "min",
         
         # Axes
@@ -254,7 +254,7 @@ def plot_piv(
         yTick_min = 0,
         yTick_max = "auto",
         yTick_interval = 50,
-        reference_vector = 5,
+        reference_vector = 1,
         
         ):
     
@@ -278,16 +278,30 @@ def plot_piv(
     
         # Plot quiver
         fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=dpi) 
+        cMax = np.nanmax(norm)
+        
         plot = ax.quiver(
+            
+            # Data
             xCoords * pixel_size,
             yCoords * pixel_size,
             vecU[t,...] * pixel_size / time_interval,
             vecV[t,...] * pixel_size / time_interval * -1,
             norm[t,...] * pixel_size / time_interval,
-            scale = 100, # to be checked
-            clim = (0, 5), # to be checked
+            
+            # Appearance
             cmap=cmap,
-            pivot='mid'
+            pivot='mid',
+            scale=50,
+            scale_units="width",
+            clim=(0, cMax),
+            width=0.01,
+            headwidth=3,
+            headlength=5,
+            headaxislength=4.5,
+            minshaft=1,
+            minlength=1,
+
             )
     
         # Set xy axes limits
@@ -370,7 +384,6 @@ def plot_piv(
 
     # Get vector norm
     norm = np.hypot(vecU, vecV)
-    # norm_max = np.max(norm) # To be checked
 
     # Execute -----------------------------------------------------------------
 
@@ -391,3 +404,64 @@ def plot_piv(
         
     return plot
     
+#%%
+
+import time
+
+# -----------------------------------------------------------------------------
+
+# Paths
+ROOT_PATH = Path(__file__).resolve().parents[1]
+DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'flow'
+
+# Read
+# stack = io.imread(DATA_PATH / "GBE_eCad_40x.tif")
+# mask = io.imread(DATA_PATH / "GBE_eCad_40x_mask.tif")
+stack = io.imread(DATA_PATH / "DC_UtrCH_100x.tif")
+mask = None
+
+# -----------------------------------------------------------------------------
+
+t0 = time.time(); 
+print(" - get_piv : ", end='')
+
+outputs = get_piv(
+        stack,
+        intSize=32, srcSize=64, binning=1,
+        mask=mask, maskCutOff=0.5,
+        parallel=True
+        )
+
+t1 = time.time()
+print(f"{(t1-t0):<5.2f}s")
+
+# -----------------------------------------------------------------------------
+
+t0 = time.time(); 
+print(" - filt_piv : ", end='')
+
+outputs = filt_piv(
+        outputs,
+        outlier_cutoff=1.5,
+        spatial_smooth=5, temporal_smooth=5, iterations_smooth=1,
+        parallel=False,
+        )
+
+t1 = time.time()
+print(f"{(t1-t0):<5.2f}s")
+
+# -----------------------------------------------------------------------------
+
+t0 = time.time(); 
+print(" - plot_piv : ", end='')
+
+plot = plot_piv(stack, outputs)
+
+t1 = time.time()
+print(f"{(t1-t0):<5.2f}s")
+
+# -----------------------------------------------------------------------------
+
+import napari
+viewer = napari.Viewer()
+viewer.add_image(plot)

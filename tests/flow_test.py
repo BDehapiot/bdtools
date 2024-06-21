@@ -209,7 +209,6 @@ print(f"{(t1-t0):<5.2f}s")
 
 import napari
 viewer = napari.Viewer()
-# viewer.add_image(stack)
 viewer.add_image(plot)
 # viewer = napari.Viewer()
 # viewer.add_image(outputs["vecU"], name="vecU", contrast_limits=(-5, 5))
