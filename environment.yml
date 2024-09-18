@@ -10,8 +10,10 @@ dependencies:
   - scikit-image
   - joblib
   - numba
-  - pytest
+  - matplotlib-base
   - spyder
+  - napari
+  - pytest
   - pip
   - pip:
       - setuptools>=58.0.0
