@@ -1,42 +1,52 @@
 #%% Imports -------------------------------------------------------------------
 
+import time
 import napari
 import numpy as np
 
 # Scipy
-from scipy.ndimage import rotate
+from scipy.ndimage import rotate, distance_transform_edt
 
 # Skimage
 from skimage.filters import gaussian
-from skimage.morphology import disk, ellipse, ball, binary_dilation, remove_small_objects
+from skimage.morphology import ellipse, binary_dilation
 
 #%% Function: -----------------------------------------------------------------
 
-# def get_edm(msk, direction="in", normalize="none"):
+def get_edm(msk, direction="in", normalize="none"):
     
-#     global edm
+    global labels, edm
     
-#     if not (np.issubdtype(msk.dtype, np.integer) or
-#             np.issubdtype(msk.dtype, np.bool_)):
-#         raise TypeError("Provided mask must be bool or int labels")
+    if not (np.issubdtype(msk.dtype, np.integer) or
+            np.issubdtype(msk.dtype, np.bool_)):
+        raise TypeError("Provided mask must be bool or int labels")
     
-#     if np.issubdtype(msk.dtype, np.bool_):
-#         if direction == "in":
-#             edm = distance_transform_edt(msk)
-#         elif direction == "out":
-#             edm = distance_transform_edt(np.invert(msk))
-#         if normalize == "global":
-            
+    if np.issubdtype(msk.dtype, np.bool_):
+        pass
+    elif np.issubdtype(msk.dtype, np.integer):
+        labels = np.unique(arr)[1:]
+        edm = np.zeros((labels.shape[0], arr.shape[0], arr.shape[1]))
+        for l, lab in enumerate(labels):
+            tmp = msk == lab
+            tmp = distance_transform_edt(tmp)
+            pMax = np.percentile(tmp[tmp > 0], 99.9)
+            tmp[tmp > pMax] = pMax
+            tmp = (tmp / pMax)
+            edm[l,...] = tmp
+        edm = np.max(edm, axis=0).astype("float32")  
+                    
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
-    
-    # Parameters
-    nObjects = 20
-    nY, nX = 256, 256
-    nProb = 0.25
-    dMin = nY * 0.02
-    dMax = dMin * 3 
+
+    # Parameters    
+    nObjects = 100
+    nY, nX = 1024, 1024
+    dMax = nY * 0.05
+    dMin = dMax * 0.25
+
+    t0 = time.time(); 
+    print("Random mask : ", end='')
 
     # Define random variables
     oIdx = np.arange(nObjects)
@@ -45,52 +55,45 @@ if __name__ == "__main__":
     width = np.random.randint(dMin, dMax, nObjects)
     height = np.random.randint(dMin, dMax, nObjects)
     angle = np.random.randint(0, 180, nObjects)
-
+    labels = np.random.choice(
+        np.arange(1, nObjects * 2), size=nObjects, replace=False)
+    
     # Create array
-    arr = np.zeros((nObjects, nY, nX), dtype=float)
-    arr[(oIdx, yIdx, xIdx)] = 1
+    arr = []
     for i in range(nObjects):
-        footprint = ellipse(width[i], height[i])
-        footprint = rotate(footprint, angle[i], reshape=True)
-        arr[i, ...] = binary_dilation(arr[i, ...], footprint=footprint)
-        
-    # Add noise & threshold
-    noise = np.random.rand(nObjects, nY, nX)
-    arr = np.maximum(arr, noise)
-    for i in range(nObjects):
-        arr[i, ...] = gaussian(arr[i, ...], sigma=2)
-    arr = arr > 0.8
-    
-    
-    # # Add boolean noise
-    # noise = np.random.choice(
-    #     [0, 1], size=(nObjects, nY, nX), p=[1 - nProb, nProb])
-    # arr = np.maximum(arr, noise)
- 
-    # #
-    # for i in range(nObjects):
-    #     arr[i, ...] = gaussian(arr[i, ...], sigma=2)
-    # arr = arr > 0.5 
-    # arr = remove_small_objects(arr, min_size=(4/3 * np.pi * dMin ** 2) / 2)
-    
-    # # Generate random arr
-    # arr = np.zeros((nObjects, nY, nX), dtype=bool)
+        tmp = np.zeros((nY, nX), dtype="uint16")
+        obj = ellipse(width[i], height[i])
+        obj = rotate(obj, angle[i], reshape=True)
+        y0 = yIdx[i] - obj.shape[0] // 2
+        x0 = xIdx[i] - obj.shape[1] // 2
+        y1 = y0 + obj.shape[0]
+        x1 = x0 + obj.shape[1]
+        if y0 < 0:  
+            obj = obj[-y0:, ...]; y0 = 0
+        if y1 > nY: 
+            obj = obj[:nY - y0, ...]; y1 = nY
+        if x0 < 0:  
+            obj = obj[:, -x0:]; x0 = 0
+        if x1 > nX: 
+            obj = obj[:, :nX - x0]; x1 = nX
+        tmp[y0:y1, x0:x1] = obj
+        tmp *= labels[i]
+        arr.append(tmp)
+    arr = np.max(np.stack(arr), axis=0)
 
-    # arr[idx] = 1
-    # for i in range(nObjects):
-    #     arr[i, ...] = binary_dilation(
-    #         arr[i, ...], footprint=disk(np.random.randint(dMin, dMax)))
+    t1 = time.time()
+    print(f"{(t1-t0):<5.5f}s")
     
+    t0 = time.time(); 
+    print("get_edm() : ", end='')
+    
+    get_edm(arr)
+    
+    t1 = time.time()
+    print(f"{(t1-t0):<5.5f}s")
+       
     # Display
     viewer = napari.Viewer()
-    viewer.add_image(arr)    
+    viewer.add_labels(arr)
+    viewer.add_image(edm)
 
-#%%
-
-# from skimage.morphology import ellipse
-# footprint = ellipse(10, 20)
-# footprint = rotate(footprint, 25, reshape=True)
-
-# # Display
-# viewer = napari.Viewer()
-# viewer.add_image(footprint )    
