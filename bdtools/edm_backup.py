@@ -60,44 +60,33 @@ if __name__ == "__main__":
 
     # Parameters    
     nObjects = 50
-    nZ, nY, nX = 20, 512, 512
-    rMax = nY * 0.05
-    rMin = rMax * 0.25
+    nY, nX = 512, 512
+    dMax = nY * 0.05
+    dMin = dMax * 0.25
 
     t0 = time.time(); 
     print("Random mask 2D: ", end='')
 
     # Define random variables
     oIdx = np.arange(nObjects)
-    zIdx = np.random.randint(0, nZ, nObjects)
     yIdx = np.random.randint(0, nY, nObjects)
     xIdx = np.random.randint(0, nX, nObjects)
-    radius = np.random.randint(rMin, rMax, nObjects)
+    width = np.random.randint(dMin, dMax, nObjects)
+    height = np.random.randint(dMin, dMax, nObjects)
+    angle = np.random.randint(0, 180, nObjects)
     labels = np.random.choice(
         np.arange(1, nObjects * 2), size=nObjects, replace=False)
     
     # Create array
     arr = []
     for i in range(nObjects):
-        tmp = np.zeros((nZ, nY, nX), dtype="uint16").squeeze()
-        if nZ > 1:
-            obj = ball(radius[i])
-            z0 = zIdx[i] - obj.shape[0] // 2
-            y0 = yIdx[i] - obj.shape[1] // 2
-            x0 = xIdx[i] - obj.shape[2] // 2
-            z1 = z0 + obj.shape[0]
-            y1 = y0 + obj.shape[1]
-            x1 = x0 + obj.shape[2]
-            if z0 < 0:
-                obj = obj[-z0:, ...]; z0 = 0
-            if z1 > nZ:
-                obj = obj[:nZ - z0, ...]; z1 = nZ
-        else:
-            obj = disk(radius[i])
-            y0 = yIdx[i] - obj.shape[0] // 2
-            x0 = xIdx[i] - obj.shape[1] // 2
-            y1 = y0 + obj.shape[0]
-            x1 = x0 + obj.shape[1]
+        tmp = np.zeros((nY, nX), dtype="uint16")
+        obj = ellipse(width[i], height[i])
+        obj = rotate(obj, angle[i], reshape=True)
+        y0 = yIdx[i] - obj.shape[0] // 2
+        x0 = xIdx[i] - obj.shape[1] // 2
+        y1 = y0 + obj.shape[0]
+        x1 = x0 + obj.shape[1]
         if y0 < 0:  
             obj = obj[-y0:, ...]; y0 = 0
         if y1 > nY: 
@@ -106,33 +95,10 @@ if __name__ == "__main__":
             obj = obj[:, -x0:]; x0 = 0
         if x1 > nX: 
             obj = obj[:, :nX - x0]; x1 = nX
-        if nZ > 1:
-            tmp[z0:z1, y0:y1, x0:x1] = obj
-        else:
-            tmp[y0:y1, x0:x1] = obj
+        tmp[y0:y1, x0:x1] = obj
         tmp *= labels[i]
         arr.append(tmp)
     arr = np.max(np.stack(arr), axis=0)
-            
-        
-    #     # implement the rest
-        
-    #     y0 = yIdx[i] - obj.shape[0] // 2
-    #     x0 = xIdx[i] - obj.shape[1] // 2
-    #     y1 = y0 + obj.shape[0]
-    #     x1 = x0 + obj.shape[1]
-    #     if y0 < 0:  
-    #         obj = obj[-y0:, ...]; y0 = 0
-    #     if y1 > nY: 
-    #         obj = obj[:nY - y0, ...]; y1 = nY
-    #     if x0 < 0:  
-    #         obj = obj[:, -x0:]; x0 = 0
-    #     if x1 > nX: 
-    #         obj = obj[:, :nX - x0]; x1 = nX
-    #     tmp[y0:y1, x0:x1] = obj
-    #     tmp *= labels[i]
-    #     arr.append(tmp)
-    # arr = np.max(np.stack(arr), axis=0)
 
     t1 = time.time()
     print(f"{(t1-t0):<5.5f}s")
@@ -151,8 +117,8 @@ if __name__ == "__main__":
     # t1 = time.time()
     # print(f"{(t1-t0):<5.5f}s")
        
-    # Display
-    viewer = napari.Viewer()
-    viewer.add_labels(arr)
+    # # Display
+    # viewer = napari.Viewer()
+    # viewer.add_labels(arr)
     # viewer.add_image(edm)
 
