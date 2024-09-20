@@ -31,8 +31,8 @@ def get_edt(
     Based on scipy.ndimage distance_transform_edt().
 
     Compute Euclidean distance tranform (edt) for boolean or integer labelled
-    mask array. If boolean, edt are computed on the overall array while if 
-    labelled, edt are computed individually for each objects.
+    mask array. If boolean, edt is applied over the entire array, whereas if 
+    labelled, edt is applied individually for each objects.
     
     Parameters
     ----------
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     from tests.mask_test import generate_random_array     
 
     # Parameters    
-    nZ, nY, nX, nObj = 1, 512, 512, 50
+    nZ, nY, nX, nObj = 1, 256, 256, 32
     min_radius = nY * 0.02
     max_radius = min_radius * 3
 
@@ -156,6 +156,8 @@ if __name__ == "__main__":
     t1 = time.time()
     print(f"{(t1-t0):<5.5f}s")
         
+    # -------------------------------------------------------------------------
+    
     t0 = time.time(); 
     print("get_edt() : ", end='')
     
@@ -170,8 +172,11 @@ if __name__ == "__main__":
     
     t1 = time.time()
     print(f"{(t1-t0):<5.5f}s")
+        
+    # -------------------------------------------------------------------------
     
     # Display
     viewer = napari.Viewer()
+    viewer.add_labels(arr) 
     viewer.add_image(edt, blending="additive", colormap="gist_earth") 
 

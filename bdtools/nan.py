@@ -7,10 +7,10 @@ from numba import njit, prange
 # Skimage
 from skimage.draw import ellipsoid
 
-#%% Function: nanfilt() -------------------------------------------------------
+#%% Function: nan_filt() ------------------------------------------------------
 
-def nanfilt(
-        img,
+def nan_filt(
+        arr,
         mask=None,
         kernel_size=3,
         kernel_shape='cuboid',
@@ -24,10 +24,10 @@ def nanfilt(
     
     Parameters
     ----------
-    img : ndarray (float)
+    arr : 2D or 3D ndarray (float)
         Image to be filtered.
         
-    mask : ndarray (bool)
+    mask : 2D or 3D ndarray (bool)
         Only pixels within mask will be filtered.
         
     kernel_size : int or tuple of int
@@ -48,7 +48,7 @@ def nanfilt(
     
     Returns
     -------  
-    img_filt : ndarray
+    arr_filt : 2D or 3D ndarray
         Processed image.
     
     """
@@ -56,67 +56,67 @@ def nanfilt(
     # Nested functions --------------------------------------------------------
 
     @njit(nogil=True, parallel=parallel)
-    def imfilt_mean(img_pad):
+    def imfilt_mean(arr_pad):
 
-        img_filt = img_pad.copy()      
+        arr_filt = arr_pad.copy()      
     
-        for z in prange(img.shape[0]):
-            for y in range(img.shape[1]):
-                for x in range(img.shape[2]):
+        for z in prange(arr.shape[0]):
+            for y in range(arr.shape[1]):
+                for x in range(arr.shape[2]):
                     
-                    if ~np.isnan(img[z,y,x]):
+                    if ~np.isnan(arr[z,y,x]):
       
-                        img_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanmean(
-                            img_pad[
+                        arr_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanmean(
+                            arr_pad[
                                 z:z+kernel_size_z,
                                 y:y+kernel_size_y,
                                 x:x+kernel_size_x,
                                 ] * strel
                             )            
        
-        return img_filt
+        return arr_filt
     
     @njit(nogil=True, parallel=parallel)
-    def imfilt_median(img_pad):
+    def imfilt_median(arr_pad):
 
-        img_filt = img_pad.copy()      
+        arr_filt = arr_pad.copy()      
     
-        for z in prange(img.shape[0]):
-            for y in range(img.shape[1]):
-                for x in range(img.shape[2]):
+        for z in prange(arr.shape[0]):
+            for y in range(arr.shape[1]):
+                for x in range(arr.shape[2]):
                     
-                    if ~np.isnan(img[z,y,x]):
+                    if ~np.isnan(arr[z,y,x]):
       
-                        img_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanmedian(
-                            img_pad[
+                        arr_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanmedian(
+                            arr_pad[
                                 z:z+kernel_size_z,
                                 y:y+kernel_size_y,
                                 x:x+kernel_size_x,
                                 ] * strel
                             )            
        
-        return img_filt
+        return arr_filt
     
     @njit(nogil=True, parallel=parallel)
-    def imfilt_std(img_pad):
+    def imfilt_std(arr_pad):
 
-        img_filt = img_pad.copy()      
+        arr_filt = arr_pad.copy()      
     
-        for z in prange(img.shape[0]):
-            for y in range(img.shape[1]):
-                for x in range(img.shape[2]):
+        for z in prange(arr.shape[0]):
+            for y in range(arr.shape[1]):
+                for x in range(arr.shape[2]):
                     
-                    if ~np.isnan(img[z,y,x]):
+                    if ~np.isnan(arr[z,y,x]):
       
-                        img_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanstd(
-                            img_pad[
+                        arr_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanstd(
+                            arr_pad[
                                 z:z+kernel_size_z,
                                 y:y+kernel_size_y,
                                 x:x+kernel_size_x,
                                 ] * strel
                             )            
        
-        return img_filt
+        return arr_filt
 
     # Execute -----------------------------------------------------------------
 
@@ -124,12 +124,12 @@ def nanfilt(
     warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
     warnings.filterwarnings(action="ignore", message="Mean of empty slice")
     
-    # Convert img to float
-    img = img.astype(float)
+    # Convert arr to float
+    arr = arr.astype(float)
         
     # Add z dimension (if ndim == 2) 
-    if img.ndim == 2: 
-        img = np.expand_dims(img, 0) 
+    if arr.ndim == 2: 
+        arr = np.expand_dims(arr, 0) 
     
     # Mask operations
     if mask is not None:
@@ -141,24 +141,24 @@ def nanfilt(
         if mask.ndim == 2: 
             mask = np.expand_dims(mask, 0)
             
-        # Check mask and img shape and match
-        if mask[0,...].shape != img[0,...].shape:
-            raise Exception('mask shape is not compatible with img shape')
-        elif mask.shape[0] != img.shape[0] and mask.shape[0] != 1:
-            raise Exception('mask shape is not compatible with img shape')
+        # Check mask and arr shape and match
+        if mask[0,...].shape != arr[0,...].shape:
+            raise Exception('mask shape is not compatible with arr shape')
+        elif mask.shape[0] != arr.shape[0] and mask.shape[0] != 1:
+            raise Exception('mask shape is not compatible with arr shape')
         elif mask.shape[0] == 1:
-            mask = np.repeat(mask, img.shape[0], axis=0)       
+            mask = np.repeat(mask, arr.shape[0], axis=0)       
     
-        # Set "out of mask" img pixels as NaNs
-        img[~mask] = np.nan
+        # Set "out of mask" arr pixels as NaNs
+        arr[~mask] = np.nan
         
     # Extract kernel_size variables
     if isinstance(kernel_size, int):
-        if img.ndim == 2:
+        if arr.ndim == 2:
             kernel_size_z = 1  
             kernel_size_y = kernel_size
             kernel_size_x = kernel_size       
-        elif img.ndim == 3:
+        elif arr.ndim == 3:
             kernel_size_z = kernel_size
             kernel_size_y = kernel_size
             kernel_size_x = kernel_size         
@@ -183,11 +183,11 @@ def nanfilt(
         kernel_size_x += 1     
     if kernel_size_z == 1: parallel = False # deactivate parallel
         
-    # Pad img
+    # Pad arr
     pad_z = kernel_size_z//2
     pad_y = kernel_size_y//2
     pad_x = kernel_size_x//2
-    img_pad = np.pad(img, 
+    arr_pad = np.pad(arr, 
         pad_width=((pad_z, pad_z), (pad_y, pad_y), (pad_x, pad_x)), 
         constant_values=np.nan
         )
@@ -203,7 +203,7 @@ def nanfilt(
         strel = strel[1:-1,1:-1,1:-1].astype('float')
         strel[strel == 0] = np.nan
     
-    # Filter img
+    # Filter arr
     
     filt = {
         'mean': imfilt_mean, 
@@ -212,21 +212,21 @@ def nanfilt(
         }
     
     for _ in range(iterations):
-        img_filt = filt[filt_method](img_pad)
-        img_pad = img_filt.copy()    
+        arr_filt = filt[filt_method](arr_pad)
+        arr_pad = arr_filt.copy()    
         
-    # Unpad img_filt
+    # Unpad arr_filt
     z_slice = slice(None) if kernel_size_z == 1 else slice(pad_z, -pad_z)
     y_slice = slice(None) if kernel_size_y == 1 else slice(pad_y, -pad_y)
     x_slice = slice(None) if kernel_size_x == 1 else slice(pad_x, -pad_x)
-    img_filt = img_filt[z_slice, y_slice, x_slice].squeeze()
+    arr_filt = arr_filt[z_slice, y_slice, x_slice].squeeze()
 
-    return img_filt
+    return arr_filt
 
-#%% Function: nanreplace() ----------------------------------------------------
+#%% Function: nan_replace() ----------------------------------------------------
 
-def nanreplace(
-        img,
+def nan_replace(
+        arr,
         mask=None,
         kernel_size=3,
         kernel_shape='cuboid',
@@ -244,10 +244,10 @@ def nanreplace(
     
     Parameters
     ----------
-    img : ndarray (float)
+    arr : 2D or 3D ndarray (float)
         Image to be filtered.
         
-    mask : ndarray (bool)
+    mask : 2D or 3D ndarray (bool)
         Only NaNs within mask will be replaced.
         
     kernel_size : int or tuple of int
@@ -269,7 +269,7 @@ def nanreplace(
     
     Returns
     -------  
-    img_filt : ndarray
+    arr_filt : 2D or 3D ndarray
         Processed image.
     
     """
@@ -277,67 +277,67 @@ def nanreplace(
     # Nested functions --------------------------------------------------------
 
     @njit(nogil=True, parallel=parallel)
-    def nanreplace_mean(img_pad):
+    def nan_replace_mean(arr_pad):
 
-        img_filt = img_pad.copy()        
+        arr_filt = arr_pad.copy()        
     
-        for z in prange(img.shape[0]):
-            for y in range(img.shape[1]):
-                for x in range(img.shape[2]):
+        for z in prange(arr.shape[0]):
+            for y in range(arr.shape[1]):
+                for x in range(arr.shape[2]):
                     
-                    if np.isnan(img[z,y,x]) and mask[z,y,x] is True:
+                    if np.isnan(arr[z,y,x]) and mask[z,y,x] is True:
       
-                        img_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanmean(
-                            img_pad[
+                        arr_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanmean(
+                            arr_pad[
                                 z:z+kernel_size_z,
                                 y:y+kernel_size_y,
                                 x:x+kernel_size_x,
                                 ] * strel
                             )
             
-        return img_filt
+        return arr_filt
     
     @njit(nogil=True, parallel=parallel)
-    def nanreplace_median(img_pad):
+    def nan_replace_median(arr_pad):
 
-        img_filt = img_pad.copy()        
+        arr_filt = arr_pad.copy()        
     
-        for z in prange(img.shape[0]):
-            for y in range(img.shape[1]):
-                for x in range(img.shape[2]):
+        for z in prange(arr.shape[0]):
+            for y in range(arr.shape[1]):
+                for x in range(arr.shape[2]):
                     
-                    if np.isnan(img[z,y,x]) and mask[z,y,x] is True:
+                    if np.isnan(arr[z,y,x]) and mask[z,y,x] is True:
       
-                        img_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanmedian(
-                            img_pad[
+                        arr_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanmedian(
+                            arr_pad[
                                 z:z+kernel_size_z,
                                 y:y+kernel_size_y,
                                 x:x+kernel_size_x,
                                 ] * strel
                             )
             
-        return img_filt
+        return arr_filt
     
     @njit(nogil=True, parallel=parallel)
-    def nanreplace_std(img_pad):
+    def nan_replace_std(arr_pad):
 
-        img_filt = img_pad.copy()        
+        arr_filt = arr_pad.copy()        
     
-        for z in prange(img.shape[0]):
-            for y in range(img.shape[1]):
-                for x in range(img.shape[2]):
+        for z in prange(arr.shape[0]):
+            for y in range(arr.shape[1]):
+                for x in range(arr.shape[2]):
                     
-                    if np.isnan(img[z,y,x]) and mask[z,y,x] is True:
+                    if np.isnan(arr[z,y,x]) and mask[z,y,x] is True:
       
-                        img_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanstd(
-                            img_pad[
+                        arr_filt[z+pad_z,y+pad_y,x+pad_x] = np.nanstd(
+                            arr_pad[
                                 z:z+kernel_size_z,
                                 y:y+kernel_size_y,
                                 x:x+kernel_size_x,
                                 ] * strel
                             )
             
-        return img_filt
+        return arr_filt
 
     # Execute -----------------------------------------------------------------
 
@@ -345,12 +345,12 @@ def nanreplace(
     warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
     warnings.filterwarnings(action="ignore", message="Mean of empty slice")
     
-    # Convert img to float
-    img = img.astype(float)
+    # Convert arr to float
+    arr = arr.astype(float)
         
     # Add z dimension (if ndim == 2) 
-    if img.ndim == 2: 
-        img = np.expand_dims(img, 0) 
+    if arr.ndim == 2: 
+        arr = np.expand_dims(arr, 0) 
         
     # Mask operations
     if mask is not None:
@@ -362,26 +362,26 @@ def nanreplace(
         if mask.ndim == 2: 
             mask = np.expand_dims(mask, 0) 
     
-        # Check mask and img shape and match
-        if mask[0,...].shape != img[0,...].shape:
-            raise Exception('mask shape is not compatible with img shape')
-        elif mask.shape[0] != img.shape[0] and mask.shape[0] != 1:
-            raise Exception('mask shape is not compatible with img shape')
+        # Check mask and arr shape and match
+        if mask[0,...].shape != arr[0,...].shape:
+            raise Exception('mask shape is not compatible with arr shape')
+        elif mask.shape[0] != arr.shape[0] and mask.shape[0] != 1:
+            raise Exception('mask shape is not compatible with arr shape')
         elif mask.shape[0] == 1:
-            mask = np.repeat(mask, img.shape[0], axis=0)
+            mask = np.repeat(mask, arr.shape[0], axis=0)
             
     else:
         
         # Create a True mask (to run nested functions)
-        mask = np.full_like(img, True, dtype=bool)
+        mask = np.full_like(arr, True, dtype=bool)
             
     # Extract kernel_size variables
     if isinstance(kernel_size, int):
-        if img.ndim == 2:
+        if arr.ndim == 2:
             kernel_size_z = 1  
             kernel_size_y = kernel_size
             kernel_size_x = kernel_size       
-        elif img.ndim == 3:
+        elif arr.ndim == 3:
             kernel_size_z = kernel_size
             kernel_size_y = kernel_size
             kernel_size_x = kernel_size         
@@ -406,12 +406,12 @@ def nanreplace(
         kernel_size_x += 1     
     if kernel_size_z == 1: parallel = False # deactivate parallel
         
-    # Pad img and mask
+    # Pad arr and mask
     pad_z = kernel_size_z//2
     pad_y = kernel_size_y//2
     pad_x = kernel_size_x//2
     pad_all = ((pad_z, pad_z), (pad_y, pad_y), (pad_x, pad_x))
-    img_pad = np.pad(img, pad_all, constant_values=np.nan) 
+    arr_pad = np.pad(arr, pad_all, constant_values=np.nan) 
     mask_pad = np.pad(mask, pad_all, constant_values=False) 
     
     # Define structuring element
@@ -425,33 +425,33 @@ def nanreplace(
         strel = strel[1:-1,1:-1,1:-1].astype('float')
         strel[strel == 0] = np.nan
     
-    # Filter img
+    # Filter arr
     
     filt = {
-        'mean': nanreplace_mean, 
-        'median': nanreplace_median, 
-        'std': nanreplace_std, 
+        'mean': nan_replace_mean, 
+        'median': nan_replace_median, 
+        'std': nan_replace_std, 
         }
     
     if isinstance(iterations, int):
     
         for _ in range(iterations):                 
-            img_filt = filt[filt_method](img_pad)
-            img_pad = img_filt.copy()  
+            arr_filt = filt[filt_method](arr_pad)
+            arr_pad = arr_filt.copy()  
             
     elif iterations == 'inf':    
         
-        nan_count = np.count_nonzero(np.isnan(img_pad[mask_pad==True]))         
+        nan_count = np.count_nonzero(np.isnan(arr_pad[mask_pad==True]))         
         
         while nan_count > 0:                
-            img_filt = filt[filt_method](img_pad)
-            img_pad = img_filt.copy()           
-            nan_count = np.count_nonzero(np.isnan(img_pad[mask_pad==True]))  
+            arr_filt = filt[filt_method](arr_pad)
+            arr_pad = arr_filt.copy()           
+            nan_count = np.count_nonzero(np.isnan(arr_pad[mask_pad==True]))  
                 
-    # Unpad img_filt
+    # Unpad arr_filt
     z_slice = slice(None) if kernel_size_z == 1 else slice(pad_z, -pad_z)
     y_slice = slice(None) if kernel_size_y == 1 else slice(pad_y, -pad_y)
     x_slice = slice(None) if kernel_size_x == 1 else slice(pad_x, -pad_x)
-    img_filt = img_filt[z_slice, y_slice, x_slice].squeeze()
+    arr_filt = arr_filt[z_slice, y_slice, x_slice].squeeze()
 
-    return img_filt
+    return arr_filt
