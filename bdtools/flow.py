@@ -415,9 +415,9 @@ ROOT_PATH = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'flow'
 
 # Read
-# stack = io.imread(DATA_PATH / "GBE_eCad_40x.tif")
-# mask = io.imread(DATA_PATH / "GBE_eCad_40x_mask.tif")
-stack = io.imread(DATA_PATH / "DC_UtrCH_100x.tif")
+stack = io.imread(DATA_PATH / "GBE_eCad_40x.tif")
+mask = io.imread(DATA_PATH / "GBE_eCad_40x_mask.tif")
+# stack = io.imread(DATA_PATH / "DC_UtrCH_100x.tif")
 mask = None
 
 # -----------------------------------------------------------------------------

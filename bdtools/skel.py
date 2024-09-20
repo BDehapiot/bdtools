@@ -1,9 +1,11 @@
 #%% Imports
 
 import numpy as np
+
+# Skimage
 from skimage.morphology import label
 
-#%% Functions
+#%% Function: pixconn() -------------------------------------------------------
 
 def pixconn(img, conn=2):
 
@@ -66,6 +68,8 @@ def pixconn(img, conn=2):
     img = img[1:-1,1:-1]
     
     return img
+
+#%% Function: labconn() -------------------------------------------------------
 
 def labconn(img, conn=2):
 

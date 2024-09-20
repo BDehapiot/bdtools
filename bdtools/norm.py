@@ -2,7 +2,7 @@
 
 import numpy as np
 
-#%% Function: norm_gcn --------------------------------------------------------
+#%% Function: norm_gcn() ------------------------------------------------------
 
 def norm_gcn(arr, sample_fraction=1, mask=None):
     
@@ -55,7 +55,7 @@ def norm_gcn(arr, sample_fraction=1, mask=None):
     
     return arr
 
-#%% Function: norm_pct --------------------------------------------------------
+#%% Function: norm_pct() ------------------------------------------------------
 
 def norm_pct(
         arr,

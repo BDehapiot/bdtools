@@ -150,20 +150,20 @@ def generate_flow_stack(
 
 #%% Test cases ----------------------------------------------------------------
 
-# # Random data
-# stack, tData = generate_flow_stack(
-#         nPoints=2048, nFrames=8, shape=(512, 512), sigma=5,
-#         dCoords=0.001, dValues=0.1, 
-#         dTrans=0.001, dAngle=1, dCenter=0.25, 
-#         noiseAvg=0.1, noiseStd=0.05,
-#         )
-# mask = None
+# Random data
+stack, tData = generate_flow_stack(
+        nPoints=2048, nFrames=8, shape=(512, 512), sigma=5,
+        dCoords=0.001, dValues=0.1, 
+        dTrans=0.001, dAngle=1, dCenter=0.25, 
+        noiseAvg=0.1, noiseStd=0.05,
+        )
+mask = None
 
 # -----------------------------------------------------------------------------
 
-# Real data
-stack = io.imread(DATA_PATH / "GBE_eCad.tif")
-mask = io.imread(DATA_PATH / "GBE_eCad_mask.tif")
+# # Real data
+# stack = io.imread(DATA_PATH / "GBE_eCad.tif")
+# mask = io.imread(DATA_PATH / "GBE_eCad_mask.tif")
 
 # -----------------------------------------------------------------------------
 

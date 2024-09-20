@@ -3,7 +3,7 @@
 import numpy as np
 from joblib import Parallel, delayed 
 
-#%% Function: extract_patches -------------------------------------------------
+#%% Function: extract_patches() -----------------------------------------------
 
 def extract_patches(arr, size, overlap):
     
@@ -71,7 +71,7 @@ def extract_patches(arr, size, overlap):
             
     return patches
 
-#%% Function: merge_patches ---------------------------------------------------
+#%% Function: merge_patches() -------------------------------------------------
 
 def merge_patches(patches, shape, overlap):
     

@@ -3,9 +3,11 @@
 import warnings
 import numpy as np
 from numba import njit, prange
+
+# Skimage
 from skimage.draw import ellipsoid
 
-#%% Function: nanfilt ---------------------------------------------------------
+#%% Function: nanfilt() -------------------------------------------------------
 
 def nanfilt(
         img,
@@ -221,7 +223,7 @@ def nanfilt(
 
     return img_filt
 
-#%% Function: nanreplace ------------------------------------------------------
+#%% Function: nanreplace() ----------------------------------------------------
 
 def nanreplace(
         img,
