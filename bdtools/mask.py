@@ -146,16 +146,19 @@ if __name__ == "__main__":
     from tests.mask_test import generate_random_array     
 
     # Parameters    
-    nZ, nY, nX, nObj = 1, 512, 512, 32
-    min_radius = nY * 0.02
-    max_radius = min_radius * 3
-
+    nZ, nY, nX, nObj = 10, 256, 256, 10
+    # min_radius = nY * 0.02
+    # max_radius = min_radius * 3
+    min_radius = 8
+    max_radius = 12
+    
     # -------------------------------------------------------------------------
 
     t0 = time.time(); 
     print("generate_random_array() : ", end='')
 
     arr = generate_random_array(nZ, nY, nX, nObj, min_radius, max_radius)
+    # arr = arr > 0
 
     t1 = time.time()
     print(f"{(t1-t0):<5.5f}s")
@@ -169,8 +172,8 @@ if __name__ == "__main__":
         arr, 
         target="foreground",
         sampling=1,
-        normalize="object", 
-        rescale_factor=1, 
+        normalize="none", 
+        rescale_factor=0.25, 
         parallel=True
         )
     

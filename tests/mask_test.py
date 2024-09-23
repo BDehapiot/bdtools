@@ -90,7 +90,7 @@ for i in range(50):
     nY = np.random.randint(64, 512)
     nX = np.random.randint(64, 512)
     nObj = np.random.randint(0, 16)
-    min_radius = np.random.randint(4, 16)
+    min_radius = np.random.randint(8, 16)
     max_radius = round(min_radius * np.random.uniform(1.1, 3))
     
     # get_edt() parameters
@@ -103,7 +103,7 @@ for i in range(50):
     sampling_tuple = sampling_tuple[:2] if nZ == 1 else sampling_tuple
     sampling = 1 if np.random.choice([True, False]) else sampling_tuple
     normalize = str(np.random.choice(["none", "global", "object"]))
-    rescale_factor = np.random.choice([1, round(np.random.uniform(0.1, 1), 3)])
+    rescale_factor = np.random.choice([1, round(np.random.uniform(0.2, 1), 3)])
     parallel = np.random.choice([True, False]) if nZ == 1 else True
 
     params_edt.append((

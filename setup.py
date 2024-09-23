@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='bd-tools',
-    version='0.2.0',
+    version='0.2.1',
     packages=find_packages(),
     description='Collection of tools for recurring tasks',
     long_description=open('README.md').read(),
