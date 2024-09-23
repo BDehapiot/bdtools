@@ -14,6 +14,8 @@ from scipy.ndimage import distance_transform_edt
 from skimage.measure import label
 from skimage.filters import gaussian
 from skimage.transform import rescale, resize
+from skimage.morphology import binary_dilation
+from skimage.segmentation import find_boundaries
 
 #%% Function: get_edt ---------------------------------------------------------
 
@@ -97,6 +99,7 @@ def get_edt(
     
     def _get_edt(lab, normalize=normalize):
         edt = arr == lab
+        edt = binary_dilation(edt)
         edt = distance_transform_edt(edt, sampling=sampling) * 1 / rescale_factor
         if normalize == "object":
             edt = norm_pct(edt, pct_low=0, pct_high=99.9, mask=edt > 0)
@@ -107,10 +110,10 @@ def get_edt(
     if rescale_factor < 1:
         arr_copy = arr.copy()
         arr = rescale(arr, rescale_factor, order=0)
-    
+            
     if target == "foreground":
-        if np.issubdtype(arr.dtype, np.bool_):
-            arr = label(arr)
+        arr[find_boundaries(arr, mode="inner") == 1] = 0
+        arr = label(arr > 0)
         labels = np.unique(arr)[1:]
         if parallel:
             edt = Parallel(n_jobs=-1)(
@@ -118,7 +121,6 @@ def get_edt(
         else:
             edt = [_get_edt(lab) for lab in labels]        
         edt = np.nanmax(np.stack(edt), axis=0).astype("float32")
-    
     else:
         edt = distance_transform_edt(np.invert(arr > 0), sampling=sampling)
         
@@ -144,9 +146,11 @@ if __name__ == "__main__":
     from tests.mask_test import generate_random_array     
 
     # Parameters    
-    nZ, nY, nX, nObj = 1, 256, 256, 32
+    nZ, nY, nX, nObj = 1, 512, 512, 32
     min_radius = nY * 0.02
     max_radius = min_radius * 3
+
+    # -------------------------------------------------------------------------
 
     t0 = time.time(); 
     print("generate_random_array() : ", end='')
@@ -163,10 +167,10 @@ if __name__ == "__main__":
     
     edt = get_edt(
         arr, 
-        target="background",
+        target="foreground",
         sampling=1,
-        normalize="none", 
-        rescale_factor=0.5, 
+        normalize="object", 
+        rescale_factor=1, 
         parallel=True
         )
     
