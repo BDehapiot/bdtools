@@ -5,7 +5,9 @@ import numpy as np
 from skimage import io
 from pathlib import Path
 from joblib import Parallel, delayed
-from bdtools.nan import nanfilt, nanreplace
+
+# bdtools
+from bdtools.nan import nan_filt, nan_replace
 
 # Skimage
 from skimage.transform import rescale
@@ -169,7 +171,7 @@ def filt_piv(
     
     def smooth_piv(vec):
         
-        vec = nanreplace(
+        vec = nan_replace(
             vec, 
             mask=nanmask,
             kernel_size=kernel_size,
@@ -179,7 +181,7 @@ def filt_piv(
             parallel=parallel,
             )
 
-        vec = nanfilt(
+        vec = nan_filt(
             vec, 
             mask=nanmask,
             kernel_size=kernel_size,
@@ -224,6 +226,14 @@ def filt_piv(
 
 #%% Function: plot_piv --------------------------------------------------------
 
+'''
+Comments
+--------
+- Need to understand arrow scaling parameters (e.g. scale & width)
+https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.quiver.html
+
+'''
+
 def plot_piv(
         
         stack, outputs,
@@ -231,7 +241,7 @@ def plot_piv(
         # Main 
         axes = True,
         colorbar = True,
-        background_image = True,
+        background_image = False,
         cmap = "viridis",
         
         # Appearance
@@ -242,19 +252,23 @@ def plot_piv(
         title = "flow",
         
         # Units
-        pixel_size = 0.08,
-        space_unit = "µm",
-        time_interval = 1 / 12,
-        time_unit = "min",
+        pixel_size = 1,
+        space_unit = "pixel",
+        time_interval = 1,
+        time_unit = "timepoint",
+        # pixel_size = 0.08,
+        # space_unit = "µm",
+        # time_interval = 1 / 12,
+        # time_unit = "min",
         
         # Axes
         xTick_min = 0,
-        xTick_max = "auto",
-        xTick_interval = 50,
+        xTick_max = "auto", # Smart
+        xTick_interval = "auto", # Smart
         yTick_min = 0,
-        yTick_max = "auto",
-        yTick_interval = 50,
-        reference_vector = 1,
+        yTick_max = "auto", # Smart
+        yTick_interval = "auto", # Smart
+        reference_vector = 5,
         
         ):
     
@@ -275,7 +289,7 @@ def plot_piv(
     # Nested function(s) ------------------------------------------------------
            
     def _plot_piv(t):
-    
+                   
         # Plot quiver
         fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=dpi) 
         cMax = np.nanmax(norm)
@@ -292,15 +306,15 @@ def plot_piv(
             # Appearance
             cmap=cmap,
             pivot='mid',
-            scale=50,
+            scale=75, # MAKE IT SMART FUNCTION PARAMETER
             scale_units="width",
             clim=(0, cMax),
-            width=0.01,
-            headwidth=3,
-            headlength=5,
-            headaxislength=4.5,
-            minshaft=1,
-            minlength=1,
+            width=0.0025, # 0.01
+            headwidth=3, # 3
+            headlength=5, # 5
+            headaxislength=5, # 5
+            minshaft=1, # 1
+            minlength=1, # 1
 
             )
     
@@ -312,12 +326,14 @@ def plot_piv(
         # Axes
         if axes:
             fig.subplots_adjust(top=top, bottom=bottom, right=right, left=left)
-            if xTick_max == 'auto': 
+            if xTick_max == "auto": 
                 xTick_maxx = width * pixel_size
-            if yTick_max == 'auto': 
+            if yTick_max == "auto": 
                 yTick_maxx = height * pixel_size
-            ax.set_xticks(np.arange(xTick_min, xTick_maxx + 1, xTick_interval))
-            ax.set_yticks(np.arange(yTick_min, yTick_maxx + 1, yTick_interval))
+            if xTick_interval != "auto":
+                ax.set_xticks(np.arange(xTick_min, xTick_maxx + 1, xTick_interval))
+            if yTick_interval != "auto": 
+                ax.set_yticks(np.arange(yTick_min, yTick_maxx + 1, yTick_interval))
             ax.set_xlabel(f'x position ({space_unit})')    
             ax.set_ylabel(f'y position ({space_unit})')
         else:
@@ -384,6 +400,7 @@ def plot_piv(
 
     # Get vector norm
     norm = np.hypot(vecU, vecV)
+    print(f"norm mean = {np.nanmean(norm)}")
 
     # Execute -----------------------------------------------------------------
 
@@ -415,9 +432,9 @@ ROOT_PATH = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'flow'
 
 # Read
-stack = io.imread(DATA_PATH / "GBE_eCad_40x.tif")
-mask = io.imread(DATA_PATH / "GBE_eCad_40x_mask.tif")
-# stack = io.imread(DATA_PATH / "DC_UtrCH_100x.tif")
+# stack = io.imread(DATA_PATH / "GBE_eCad_40x_lite.tif")
+# mask = io.imread(DATA_PATH / "GBE_eCad_40x_mask.tif")
+stack = io.imread(DATA_PATH / "DC_UtrCH_100x.tif")
 mask = None
 
 # -----------------------------------------------------------------------------
@@ -465,3 +482,26 @@ print(f"{(t1-t0):<5.2f}s")
 import napari
 viewer = napari.Viewer()
 viewer.add_image(plot)
+
+#%% auto ticks 
+
+# def auto_ticks(max_value, num_ticks):   
+    
+#     interval = max_value / (num_ticks - 1)
+#     order_of_magnitude = 10 ** np.floor(np.log10(interval))
+#     norm_interval = interval / order_of_magnitude
+    
+#     print(f"interval = {interval}")
+#     print(f"order_of_magnitude = {order_of_magnitude}")
+#     print(f"norm_interval = {norm_interval}")
+    
+#     if norm_interval <= 1: tick_interval = 1
+#     elif norm_interval <= 2: tick_interval = 2
+#     elif norm_interval <= 2.5: tick_interval = 2.5
+#     elif norm_interval <= 5: tick_interval = 5
+#     else: tick_interval = 10   
+    
+#     return tick_interval * order_of_magnitude
+
+#     print(auto_ticks(768, 5))
+
