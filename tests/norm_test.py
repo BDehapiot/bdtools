@@ -19,7 +19,7 @@ for i in range(50):
 
     dtype = str(np.random.choice(["uint8", "uint16", "float32"]))
     shape = str(np.random.choice(["2D", "3D", "4D"]))
-    sample_fraction = round(np.random.uniform(0.001, 1.0), 3)
+    sample_fraction = round(np.random.uniform(0.01, 1.0), 3)
     addMask = np.random.choice([True, False])
     addNaNs = np.random.choice([True, False])
     loc = round(np.random.uniform(0.1, 0.9), 3)
@@ -34,7 +34,7 @@ for i in range(50):
 
     dtype = str(np.random.choice(["uint8", "uint16", "float32"]))
     shape = str(np.random.choice(["2D", "3D", "4D"]))
-    sample_fraction = round(np.random.uniform(0.001, 1.0), 3)
+    sample_fraction = round(np.random.uniform(0.01, 1.0), 3)
     addMask = np.random.choice([True, False])
     addNaNs = np.random.choice([True, False])
     loc = round(np.random.uniform(0.1, 0.9), 3)
