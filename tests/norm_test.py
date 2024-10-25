@@ -9,6 +9,7 @@ ROOT_PATH = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'patch'
 sys.path.insert(0, str(ROOT_PATH))
 
+from skimage.transform import rescale 
 from bdtools.norm import norm_gcn, norm_pct
 
 #%% Test cases ----------------------------------------------------------------
@@ -78,16 +79,29 @@ def test_norm_gcn(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, i
         
     # Convert to list (if isList)
     if isList:
-        arr = [ar for ar in arr]
-        mask = [msk for msk in mask]
+        n = int(np.prod(arr.shape[:-2]))
+        arr = [arr.reshape(n, *arr.shape[-2:])[i] for i in range(n)]
+        if addMask:
+            mask = [mask.reshape(n, *mask.shape[-2:])[i] for i in range(n)]
+            
+        # Rescale
+        for i in range(len(arr)):
+            rf = round(np.random.uniform(0.5, 2), 3)
+            arr[i] = rescale(arr[i], rf, preserve_range=True)
+            if addMask:
+                mask[i] = rescale(mask[i], rf, order=0, preserve_range=True)
     
     # Perform tests
     try:
         arr_norm = norm_gcn(arr, sample_fraction=sample_fraction, mask=mask)
-        atol, mean, std = 0.2, np.nanmean(arr_norm), np.nanstd(arr_norm)      
+        if isinstance(arr_norm, np.ndarray):
+            val = arr_norm.ravel()
+        elif isinstance(arr_norm, list):
+            val = np.concatenate([ar.ravel() for ar in arr_norm])
+        atol, mean, std = 0.2, np.nanmean(val), np.nanstd(val)
         assert np.isclose(mean, 0, atol=atol), f"mean ({mean:.3f}) out of tolerance (0 +- {atol})"
         assert np.isclose(std, 1, atol=atol), f"std ({std:.3f}) out of tolerance (1 +- {atol})"
-        
+                
     except Exception as e:
         pytest.fail(f"An error occurred: {str(e)}")
    
@@ -122,13 +136,26 @@ def test_norm_pct(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, p
         
     # Convert to list (if isList)
     if isList:
-        arr = [ar for ar in arr]
-        mask = [msk for msk in mask]
+        n = int(np.prod(arr.shape[:-2]))
+        arr = [arr.reshape(n, *arr.shape[-2:])[i] for i in range(n)]
+        if addMask:
+            mask = [mask.reshape(n, *mask.shape[-2:])[i] for i in range(n)]
+            
+        # Random rescaling (if isList)
+        for i in range(len(arr)):
+            rf = round(np.random.uniform(0.5, 2), 3)
+            arr[i] = rescale(arr[i], rf, preserve_range=True)
+            if addMask:
+                mask[i] = rescale(mask[i], rf, order=0, preserve_range=True)
     
     # Perform tests
     try:
         arr_norm = norm_pct(arr, pct_low=pct_low, pct_high=pct_high, sample_fraction=sample_fraction, mask=mask) 
-        atol, min_val, max_val = 0.01, np.nanmin(arr_norm), np.nanmax(arr_norm)
+        if isinstance(arr_norm, np.ndarray):
+            val = arr_norm.ravel()
+        elif isinstance(arr_norm, list):
+            val = np.concatenate([ar.ravel() for ar in arr_norm])
+        atol, min_val, max_val = 0.01, np.nanmin(val), np.nanmax(val)
         assert np.isclose(min_val, 0, atol=atol), f"min ({min_val:.3f}) is != 0"
         assert np.isclose(max_val, 1, atol=atol), f"max ({max_val:.3f}) is != 1"
         
