@@ -133,3 +133,33 @@ def norm_pct(
     arr /= (pHigh - pLow)
         
     return arr
+
+#%% Execute -------------------------------------------------------------------
+
+if __name__ == "__main__":
+    
+    dtype = str(np.random.choice(["uint8", "uint16", "float32"]))
+    shape = str(np.random.choice(["2D", "3D", "4D"]))
+    sample_fraction = round(np.random.uniform(0.001, 1.0), 3)
+    addMask = np.random.choice([True, False])
+    addNaNs = np.random.choice([True, False])
+    loc = round(np.random.uniform(0.1, 0.9), 3)
+    scale = round(np.random.uniform(0.05, 0.2), 3)
+    isList = np.random.choice([True, False])
+    
+    # Get shape
+    if shape == "2D": size = (256, 256)
+    if shape == "3D": size = (5, 256, 256)
+    if shape == "4D": size = (2, 5, 256, 256)
+        
+    # Get dtype
+    if dtype == "float32": maxInt = 1
+    if dtype == "uint8"  : maxInt = 255
+    if dtype == "uint16" : maxInt = 65535
+    
+    # Generate random array
+    arr = np.random.normal(loc=loc * maxInt, scale=scale * maxInt, size=size)
+    arr = np.clip(arr, 0, maxInt)
+    
+    pass
+    

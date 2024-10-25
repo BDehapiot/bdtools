@@ -23,9 +23,10 @@ for i in range(50):
     addNaNs = np.random.choice([True, False])
     loc = round(np.random.uniform(0.1, 0.9), 3)
     scale = round(np.random.uniform(0.05, 0.2), 3)
+    isList = np.random.choice([True, False])
 
     params_gcn.append((
-        dtype, shape, sample_fraction, addNaNs, addMask, loc, scale)) 
+        dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, isList)) 
     
 params_pct = []
 for i in range(50):
@@ -39,15 +40,16 @@ for i in range(50):
     scale = round(np.random.uniform(0.05, 0.2), 3)
     pct_low = round(np.random.uniform(0, 50), 3)
     pct_high = round(np.random.uniform(51, 100), 3)
+    isList = np.random.choice([True, False])
 
     params_pct.append((
-        dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, pct_low, pct_high)) 
+        dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, pct_low, pct_high, isList)) 
     
 #%% Tests ---------------------------------------------------------------------
 
 @pytest.mark.parametrize(
-    "dtype, shape, sample_fraction, addNaNs, addMask, loc, scale", params_gcn)
-def test_norm_gcn(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale):
+    "dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, isList", params_gcn)
+def test_norm_gcn(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, isList):
     
     # Get shape
     if shape == "2D": size = (256, 256)
@@ -73,6 +75,11 @@ def test_norm_gcn(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale):
             arr.size, int(arr.size * 0.1), replace=False)
         nan_idx = np.unravel_index(nan_idx, size)
         arr[nan_idx] = np.nan
+        
+    # Convert to list (if isList)
+    if isList:
+        arr = [ar for ar in arr]
+        mask = [msk for msk in mask]
     
     # Perform tests
     try:
@@ -85,8 +92,8 @@ def test_norm_gcn(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale):
         pytest.fail(f"An error occurred: {str(e)}")
    
 @pytest.mark.parametrize(
-    "dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, pct_low, pct_high", params_pct)
-def test_norm_pct(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, pct_low, pct_high):
+    "dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, pct_low, pct_high, isList", params_pct)
+def test_norm_pct(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, pct_low, pct_high, isList):
     
     # Get shape
     if shape == "2D": size = (256, 256)
@@ -112,6 +119,11 @@ def test_norm_pct(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, p
             arr.size, int(arr.size * 0.1), replace=False)
         nan_idx = np.unravel_index(nan_idx, size)
         arr[nan_idx] = np.nan
+        
+    # Convert to list (if isList)
+    if isList:
+        arr = [ar for ar in arr]
+        mask = [msk for msk in mask]
     
     # Perform tests
     try:
@@ -125,5 +137,5 @@ def test_norm_pct(dtype, shape, sample_fraction, addNaNs, addMask, loc, scale, p
         
 #%% Execute -------------------------------------------------------------------
 
-# if __name__ == "__main__":
-#     pytest.main([__file__])
+if __name__ == "__main__":
+    pytest.main([__file__])
