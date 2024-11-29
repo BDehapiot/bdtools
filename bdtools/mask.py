@@ -17,6 +17,12 @@ from skimage.transform import rescale, resize
 from skimage.morphology import binary_dilation
 from skimage.segmentation import find_boundaries
 
+#%% Comments ------------------------------------------------------------------
+
+'''
+- maybe something wrong with input arr that can be modified by the code
+'''
+
 #%% Function: get_edt ---------------------------------------------------------
 
 def get_edt(
