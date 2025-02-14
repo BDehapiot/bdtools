@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='bd-tools',
-    version='0.2.2',
+    version='0.2.3',
     packages=find_packages(),
     description='Collection of tools for recurring tasks',
     long_description=open('README.md').read(),
@@ -17,5 +17,17 @@ setup(
         "joblib",
         "numba",
     ],
+    extras_require={
+        "tf-gpu": [
+            "napari[all]",
+            "albumentations",
+            "tensorflow-gpu==2.10",
+        ],
+        "tf-nogpu": [
+            "napari[all]",
+            "albumentations",
+            "tensorflow==2.10",
+        ],
+    },
     python_requires='>=3.9',
 )

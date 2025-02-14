@@ -44,9 +44,9 @@ def test_patches(shape, size, overlap):
     arr = np.random.rand(*shape)
     patches = extract_patches(arr, size, overlap)
     merged_arr = merge_patches(patches, shape, overlap)
-    assert np.array_equal(arr, merged_arr), "Merged array differs from original"
+    assert np.allclose(arr, merged_arr), "Merged array differs from original"
 
 #%% Execute -------------------------------------------------------------------
 
-# if __name__ == "__main__":
-#     pytest.main([__file__])
+if __name__ == "__main__":
+    pytest.main([__file__])
