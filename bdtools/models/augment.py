@@ -1,35 +1,35 @@
 #%% Imports -------------------------------------------------------------------
 
-import warnings
 import numpy as np
 import albumentations as A
 from joblib import Parallel, delayed 
 
-#%% Comments ------------------------------------------------------------------
-
-'''
-High priority:
-    - The operations should be nested in the parallel function 
-'''
+# skimage
+from skimage.filters import gaussian
+from skimage.exposure import adjust_gamma
 
 #%% Function : augment() ------------------------------------------------------
 
-def augment(imgs, msks, iterations):
-      
+def augment(
+        imgs, msks, iterations,
+        gamma_p=0.5, gblur_p=0.5, noise_p=0.5, flip_p=0.5, distord_p=0.5,
+        ):
+    
     """
     Augment images and masks using random transformations.
     
     The following transformation are applied:
         
-        - vertical flip (p = 0.5)      
-        - horizontal flip (p = 0.5)
-        - rotate 90° (p = 0.5)
-        - transpose (p = 0.5)
-        - distord (p = 0.5)
+        - adjust gamma (image only)      
+        - apply gaussian blur (image only) 
+        - add noise (image only) 
+        - flip (image & mask)
+        - grid distord (image & mask)
     
-    The same transformation is applied to an image and its correponding mask.
-    Transformation can be tuned by modifying the `operations` variable.
-    The function is based on the `albumentations` library.
+    If required, image transformations are applied to their correponding masks.
+    Transformation probabilities can be set with function arguments.
+    Transformation random parameters can be tuned with the params dictionnary.
+    Grid distortions are applied with the `albumentations` library.
     https://albumentations.ai/
 
     Parameters
@@ -43,6 +43,9 @@ def augment(imgs, msks, iterations):
     iterations : int
         The number of augmented samples to generate.
     
+    gamma_p, gblur_p, noise_p, flip_p, distord_p : float (0 to 1) 
+        Probability to apply the transformation.
+    
     Returns
     -------
     imgs : 3D ndarray (float)
@@ -53,62 +56,114 @@ def augment(imgs, msks, iterations):
     
     """
     
-    if iterations <= imgs.shape[0]:
-        warnings.warn(f"iterations ({iterations}) is less than n of images")
-        
-    # Nested function(s) ------------------------------------------------------    
-    def _augment(imgs, msks):      
-        
-        idx = np.random.randint(0, len(imgs) - 1)
-
-        if imgs.shape[1] == imgs.shape[2]:
-            p0, p1 = 0.5, 0.5
-        else:
-            p0, p1 = 0.5, 0    
-            
-        operations = A.Compose([
-            
-            # Geometric transformations
-            # A.VerticalFlip(p=p1),              
-            # A.HorizontalFlip(p=p1),
-            # A.RandomRotate90(p=p1),
-            # A.Transpose(p=p1),
-            
-            # Distortion-Based transformations
-            A.ElasticTransform(p=p0),
-            # A.GridDistortion(p=p0),
-
-        ])
-        
-        outputs = operations(image=imgs[idx,...], mask=msks[idx,...])
-        return outputs["image"], outputs["mask"]
+    # Parameters --------------------------------------------------------------
     
-    # Execute -----------------------------------------------------------------    
+    params = {
+        
+        # Gamma
+        "gamma_low"  : 0.75,
+        "gamma_high" : 1.25,
+        
+        # Gaussian blur
+        "sigma_low"  : 1,
+        "sigma_high" : 3,
+        
+        # Noise
+        "sgain_low"   : 0.50,
+        "sgain_high"  : 1.00,
+        "rnoise_low"  : 6,
+        "rnoise_high" : 10,
+        
+        # Grid distord
+        "nsteps_low"  : 1,
+        "nsteps_high" : 10,
+        "dlimit_low"  : 0.1,
+        "dlimit_high" : 0.5,
+        
+        }
     
-    outputs = Parallel(n_jobs=-1)(
-        delayed(_augment)(imgs, msks)
-        for i in range(iterations)
+    # Nested functions --------------------------------------------------------
+    
+    def _gamma(img, gamma=1.0):
+        img_mean = np.mean(img)
+        img = adjust_gamma(img, gamma=gamma)
+        img = img * (img_mean / np.mean(img))
+        return img
+    
+    def _noise(img, shot_gain=0.5, read_noise_std=5):
+        img_std = np.std(img) 
+        img = np.random.poisson(img * shot_gain) / shot_gain
+        img += np.random.normal(
+            loc=0.0, scale=img_std / read_noise_std, size=img.shape)
+        return img
+    
+    def _flip(img, msk):
+        if np.random.rand() < 0.5:
+            img, msk = np.flipud(img), np.flipud(msk)
+        if np.random.rand() < 0.5:
+            img, msk = np.fliplr(img), np.fliplr(msk)
+        if img.shape[0] == img.shape[1]:
+            if np.random.rand() < 0.5:
+                img = np.rot90(img, k=np.random.choice([-1, 1]))
+                msk = np.rot90(msk, k=np.random.choice([-1, 1]))
+        return img, msk
+    
+    def _augment(img, msk):
+        
+        if np.random.rand() < gamma_p:
+            gamma = np.random.uniform(
+                params["gamma_low"], params["gamma_high"])
+            img = _gamma(img, gamma=gamma)
+            
+        if np.random.rand() < gblur_p:
+            sigma = np.random.randint(
+                params["sigma_low"], params["sigma_high"])
+            img = gaussian(img, sigma=sigma)
+            
+        if np.random.rand() < noise_p:
+            shot_gain = np.random.uniform(
+                params["sgain_low"], params["sgain_high"])
+            read_noise_std = np.random.randint(
+                params["rnoise_low"], params["rnoise_high"])
+            img = _noise(
+                img, shot_gain=shot_gain, read_noise_std=read_noise_std)
+            
+        if np.random.rand() < flip_p:
+            img, msk = _flip(img, msk)
+            
+        if np.random.rand() < distord_p:
+            num_steps = np.random.randint(
+                params["nsteps_low"], params["nsteps_high"])
+            distort_limit = np.random.uniform(
+                params["dlimit_low"], params["dlimit_high"])
+            spatial_transforms = A.Compose([
+                A.GridDistortion(
+                    num_steps=num_steps, 
+                    distort_limit=distort_limit, 
+                    p=1
+                    )
+                ])
+            outputs = spatial_transforms(image=img, mask=msk)
+            img, msk = outputs["image"], outputs["mask"]
+        
+        return img, msk
+        
+    # Execute -----------------------------------------------------------------
+    
+    # Initialize
+    imgs = imgs.astype("float32")
+    idxs = np.random.choice(
+        np.arange(0, imgs.shape[0]), size=iterations)
+    
+    outputs = Parallel(n_jobs=-1, backend="threading")(
+        delayed(_augment)(imgs[i], msks[i])
+        for i in idxs
         )
     
     imgs = np.stack([data[0] for data in outputs])
     msks = np.stack([data[1] for data in outputs])
-    
+        
     return imgs, msks
-
-    # ops = [
-    #     # Distortion
-    #     A.Compose([A.GridDistortion(num_steps=5, distort_limit=0.50, p=1)]),
-    #     A.Compose([A.GridDistortion(num_steps=7, distort_limit=0.75, p=1)]),
-    #     A.Compose([A.GridDistortion(num_steps=10, distort_limit=0.75, p=1)]),
-    #     # Geometric Transformations
-    #     A.Compose([A.HorizontalFlip(p=1)]),
-    #     A.Compose([A.VerticalFlip(p=1)]),
-    #     A.Compose([A.RandomRotate90(p=1)]),
-    #     # Else
-    #     A.Compose([A.Equalize(p=1)]),
-    #     A.Compose([A.GaussNoise(std_range=(0.2, 0.3), p=1)]),
-    #     A.Compose([A.MotionBlur(blur_limit=15, p=1)]),
-    #     ]
 
 #%% Execute -------------------------------------------------------------------
 
@@ -122,9 +177,8 @@ if __name__ == "__main__":
 
     # Parameters
     dataset = "em_mito"
-    n = 10 # n of subset images 
-    iterations = 100 # n of augmented iterations 
-    np.random.seed(42)
+    # dataset = "fluo_nuclei"
+    iterations = 500 # n of augmented iterations 
     
     # Paths
     local_path = Path.cwd().parent.parent / "_local"
@@ -134,25 +188,16 @@ if __name__ == "__main__":
     # Load images & masks
     imgs = io.imread(img_path)
     msks = io.imread(msk_path)
-    
-    # Subset images & masks
-    idxs = np.random.choice(
-        np.arange(imgs.shape[0]), size=n, replace=False)
-    imgs = imgs[idxs]
-    msks = msks[idxs]    
-    
+        
     # Augment tests
     print(f"augment iterations = {iterations}", end=" ", flush=True)
     t0 = time.time()
-    imgs, msks = augment(imgs, msks, iterations)
+    aug_imgs, aug_msks = augment(imgs, msks, iterations)
     t1 = time.time()
     print(f"({t1 - t0:.3f}s)")
-    
+        
     # Display
     viewer = napari.Viewer()
-    viewer.add_image(imgs)
-    viewer.add_labels(msks)
-
-    
-        
-    pass
+    contrast_limits = [0, 255]
+    viewer.add_image(aug_imgs, contrast_limits=contrast_limits)
+    viewer.add_labels(aug_msks)
