@@ -74,77 +74,6 @@ def extract_patches(arr, size, overlap):
             
     return patches
 
-#%% 
-
-import numpy as np
-from numpy.lib.stride_tricks import sliding_window_view
-
-def extract_patches(arr, size, overlap):
-    """
-    Extract patches from a 2D or 3D ndarray.
-
-    For 3D arrays, patches are extracted from each 2D slice along the first 
-    dimension. If necessary, the input array is padded using 'reflect' mode.
-
-    Parameters
-    ----------
-    arr : ndarray (2D or 3D)
-        Array to be patched.
-    size : int
-        Size of extracted patches.
-    overlap : int
-        Overlap between patches (must be between 0 and size - 1).
-
-    Returns
-    -------
-    patches : ndarray
-        For 2D: an array of shape (n_patches, size, size).
-        For 3D: an array of shape (n_patches_total, size, size) where patches
-        are extracted from each 2D slice along the first dimension.
-    """
-    # Determine dimensions
-    if arr.ndim == 2:
-        nT = 1
-        nY, nX = arr.shape
-    elif arr.ndim == 3:
-        nT, nY, nX = arr.shape
-    else:
-        raise ValueError("Input array must be 2D or 3D.")
-
-    # The step between patches is (size - overlap)
-    step = size - overlap
-
-    # Compute patch starting indices and required padding
-    y0s = np.arange(0, nY, step)
-    x0s = np.arange(0, nX, step)
-    yMax = y0s[-1] + size
-    xMax = x0s[-1] + size
-    yPad = yMax - nY
-    xPad = xMax - nX
-    yPad1, yPad2 = yPad // 2, (yPad + 1) // 2
-    xPad1, xPad2 = xPad // 2, (xPad + 1) // 2
-
-    if arr.ndim == 2:
-        # Pad the array
-        arr_pad = np.pad(arr, ((yPad1, yPad2), (xPad1, xPad2)), mode='reflect')
-        # Create a sliding window view: shape is (new_y, new_x, size, size)
-        windows = sliding_window_view(arr_pad, (size, size))
-        # Downsample the view to pick only the windows we want
-        patches = windows[::step, ::step].reshape(-1, size, size)
-    else:  # arr.ndim == 3
-        # Pad only spatial dimensions; do not pad along the time axis.
-        arr_pad = np.pad(arr, ((0, 0), (yPad1, yPad2), (xPad1, xPad2)), mode='reflect')
-        patch_list = []
-        # Process each 2D slice independently
-        for t in range(nT):
-            windows = sliding_window_view(arr_pad[t], (size, size))
-            patches_t = windows[::step, ::step].reshape(-1, size, size)
-            patch_list.append(patches_t)
-        patches = np.concatenate(patch_list, axis=0)
-        
-    return patches
-
-
 #%% Function: merge_patches() -------------------------------------------------
 
 @njit
@@ -195,10 +124,10 @@ def merge_patches(patches, shape, overlap):
     
     def get_patch_edt(patch_shape):
         edt_temp = np.ones(patch_shape, dtype=float)
-        edt_temp[:, 0] = 0
-        edt_temp[:, -1] = 0
-        edt_temp[0, :] = 0
-        edt_temp[-1, :] = 0
+        edt_temp[ :,  0] = 0
+        edt_temp[ :, -1] = 0
+        edt_temp[ 0,  :] = 0
+        edt_temp[-1,  :] = 0
         return distance_transform_edt(edt_temp) + 1
 
     # Get size & dimensions 
@@ -254,3 +183,45 @@ def merge_patches(patches, shape, overlap):
             merged_slices.append(merged_slice)
         
         return np.stack(merged_slices)
+    
+#%% Execute -------------------------------------------------------------------
+
+if __name__ == "__main__":
+    
+    # Imports
+    import time
+    import napari
+    from skimage import io
+    from pathlib import Path
+
+    # Parameters
+    dataset = "em_mito"
+    # dataset = "fluo_nuclei"
+    size = 256 # patch size
+    overlap = 128 # patch overlap 
+    
+    # Paths
+    local_path = Path.cwd().parent / "_local"
+    img_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
+    msk_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
+    
+    # Load images & masks
+    imgs = io.imread(img_path)
+    msks = io.imread(msk_path)
+        
+    # Patch tests
+    print("extract patches : ", end=" ", flush=True)
+    t0 = time.time()
+    patches = extract_patches(imgs, size, overlap)
+    t1 = time.time()
+    print(f"({t1 - t0:.3f}s)")
+        
+    print("merge patches : ", end=" ", flush=True)
+    t0 = time.time()
+    imgs_merged = merge_patches(patches, imgs.shape, overlap)
+    t1 = time.time()
+    print(f"({t1 - t0:.3f}s)")
+    
+    # Display
+    viewer = napari.Viewer()
+    viewer.add_image(np.stack(patches))

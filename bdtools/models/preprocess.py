@@ -1,5 +1,6 @@
 #%% Imports -------------------------------------------------------------------
 
+import time
 import numpy as np
 from joblib import Parallel, delayed 
 
@@ -98,12 +99,12 @@ def preprocess(
             
     def _preprocess(img, msk=None):
 
-        if msks is None:
+        if msk is None:
             
             img = np.array(img).squeeze()
             
             img = extract_patches(img, patch_size, patch_overlap)
-                 
+            
             return img
             
         else:
@@ -125,6 +126,8 @@ def preprocess(
     
     # Execute -----------------------------------------------------------------        
        
+    t0 = time.time()
+    
     # Normalize images
     if img_norm == "none":
         pass
@@ -136,8 +139,14 @@ def preprocess(
         else:
             imgs = [normalize(img) for img in imgs]
     
+    t1 = time.time()
+    
+    print(f"normalize : {t1 - t0:.2f}")
+    
     # Preprocess
     if msks is None:
+        
+        print("msks is None")
         
         if isinstance(imgs, np.ndarray):           
             if imgs.ndim == 2: imgs = [imgs]
@@ -175,7 +184,7 @@ def preprocess(
             outputs = Parallel(n_jobs=-1)(
                 delayed(_preprocess)(img, msk)
                 for img, msk in zip(imgs, msks)
-                )
+                )           
             imgs = [data[0] for data in outputs]
             msks = [data[1] for data in outputs]
             imgs = np.stack([arr for sublist in imgs for arr in sublist])
@@ -205,10 +214,10 @@ if __name__ == "__main__":
     # Parameters
     dataset = "em_mito"
     # dataset = "fluo_nuclei"
-    img_norm = "none"
+    img_norm = "image"
     msk_type = "normal"
     patch_size = 256
-    patch_overlap=0
+    patch_overlap = 0
     
     # Paths
     local_path = Path.cwd().parent.parent / "_local"
