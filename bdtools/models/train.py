@@ -45,6 +45,9 @@ class UNet:
         self.patience = patience
         self.weights_path = weights_path
         
+        # Initialize
+        
+        
         # Execute   
         self.downscale()
         self.split()
@@ -95,17 +98,13 @@ class UNet:
             mode="min",
             )
         
-        self.earlystopping = EarlyStopping(
+        self.early_stopping = EarlyStopping(
             patience=self.patience, 
             monitor='val_loss',
             mode="min",
             )
         
-        self.callbacks = [
-            self.checkpoint, 
-            self.earlystopping, 
-            UNet.CustomCallback(self),
-            ]
+        self.callbacks = CustomCallback(self)
         
     def train(self):
     
@@ -121,13 +120,41 @@ class UNet:
     class CustomCallback(Callback):
         
         def __init__(self, unet):
+            
             super(UNet.CustomCallback, self).__init__()
+            
+            # Fetch
             self.unet = unet
+
+            # Initialize
             self.trn_loss = []
             self.val_loss = []
+
+            # Checkpoints
+            self.checkpoint = ModelCheckpoint(
+                filepath=Path(self.unet.save_path, "weights.h5"),
+                save_weights_only=True,
+                save_best_only=True,
+                monitor="val_loss",
+                mode="min",
+                )
+            
+            # Early stopping
+            self.earlystopping = EarlyStopping(
+                patience=self.unet.patience,
+                monitor="val_loss",
+                mode="min",
+                )
     
         def on_epoch_end(self, epoch, logs=None):
             logs = logs or {}
+            
+            # Fetch 
+            
+            trn_loss = logs.get("loss")
+            val_loss = logs.get("val_loss")
+            wait = self.unet.earlystopping.wait
+            patience = self.unet.earlystopping.patience
             
             # Monitor losses
             trn_loss = logs.get("loss")
