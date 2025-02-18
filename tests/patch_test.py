@@ -1,16 +1,17 @@
 #%% Imports -------------------------------------------------------------------
 
 import sys
-import time
+# import time
 import pytest
 import numpy as np
 from pathlib import Path
 
+# bdtools
+from bdtools.patch import extract_patches, merge_patches
+
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'patch'
 sys.path.insert(0, str(ROOT_PATH))
-
-from bdtools.patch import extract_patches, merge_patches
 
 #%% Test cases ----------------------------------------------------------------
 

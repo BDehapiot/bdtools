@@ -1,6 +1,5 @@
 #%% Imports -------------------------------------------------------------------
 
-import time
 import numpy as np
 from joblib import Parallel, delayed 
 
@@ -125,9 +124,7 @@ def preprocess(
             return img, msk
     
     # Execute -----------------------------------------------------------------        
-       
-    t0 = time.time()
-    
+           
     # Normalize images
     if img_norm == "none":
         pass
@@ -138,16 +135,10 @@ def preprocess(
             imgs = normalize(imgs)
         else:
             imgs = [normalize(img) for img in imgs]
-    
-    t1 = time.time()
-    
-    print(f"normalize : {t1 - t0:.2f}")
-    
+            
     # Preprocess
     if msks is None:
-        
-        print("msks is None")
-        
+                
         if isinstance(imgs, np.ndarray):           
             if imgs.ndim == 2: imgs = [imgs]
             elif imgs.ndim == 3: imgs = list(imgs)

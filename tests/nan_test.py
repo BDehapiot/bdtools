@@ -6,11 +6,12 @@ import numpy as np
 from skimage import io 
 from pathlib import Path
 
+# bdtools
+from bdtools.nan import nan_filt, nan_replace
+
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'nan'
 sys.path.insert(0, str(ROOT_PATH))
-
-from bdtools.nan import nan_filt, nan_replace
 
 #%% Initialize ----------------------------------------------------------------
 
@@ -208,5 +209,5 @@ def test_nan_replace(nan_replace_params):
 
 #%% Execute -------------------------------------------------------------------
 
-# if __name__ == "__main__":
-#     pytest.main([__file__])
+if __name__ == "__main__":
+    pytest.main([__file__])

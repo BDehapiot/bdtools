@@ -5,12 +5,15 @@ import pytest
 import numpy as np
 from pathlib import Path
 
+# bdtools
+from bdtools.norm import norm_gcn, norm_pct
+
+# skimage
+from skimage.transform import rescale 
+
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'patch'
 sys.path.insert(0, str(ROOT_PATH))
-
-from skimage.transform import rescale 
-from bdtools.norm import norm_gcn, norm_pct
 
 #%% Test cases ----------------------------------------------------------------
 

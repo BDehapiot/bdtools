@@ -5,11 +5,12 @@ import pytest
 import numpy as np
 from pathlib import Path
 
+# bdtools
+from bdtools.mask import get_edt
+
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'patch'
 sys.path.insert(0, str(ROOT_PATH))
-
-from bdtools.mask import get_edt
 
 #%% Function(s) ---------------------------------------------------------------
 
@@ -165,5 +166,5 @@ def test_get_edt(
 
 #%% Execute -------------------------------------------------------------------
 
-# if __name__ == "__main__":
-#     pytest.main([__file__])
+if __name__ == "__main__":
+    pytest.main([__file__])
