@@ -1,7 +1,11 @@
 #%% Imports -------------------------------------------------------------------
 
+import pickle
+import shutil
 import numpy as np
 from pathlib import Path
+from datetime import datetime
+import matplotlib.pyplot as plt
 import segmentation_models as sm
 
 # Tensorflow
@@ -11,7 +15,12 @@ from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 # Skimage
 from skimage.transform import downscale_local_mean, rescale
 
-#%% 
+#%%
+
+
+
+
+#%%
 
 class UNet:
        
@@ -19,12 +28,9 @@ class UNet:
             self, X, y,
             save_name="",
             save_path=Path.cwd(),
-            
-            
-            downscale_steps=0,
-            
+            downscale_steps=0, 
             backbone="resnet18",
-            epochs=50,
+            epochs=100,
             batch_size=32,
             validation_split=0.2,
             learning_rate=0.001,
@@ -45,8 +51,23 @@ class UNet:
         self.patience = patience
         self.weights_path = weights_path
         
-        # Initialize
+        # Model name
+        self.date = datetime.now().strftime('%Y-%m-%d_%Hh%Mm%Ss')
+        if not self.save_name:
+            self.save_name = f"model_{self.date}"
+        else:
+            self.save_name = f"model_{self.save_name}"
         
+        # Saving directory
+        self.save_path = Path(Path.cwd(), self.save_name)
+        self.backup_path = Path(Path.cwd(), f"{self.save_name}_backup")
+        if self.save_path.exists():
+            if self.weights_path and self.weights_path.exists():
+                if self.backup_path.exists():
+                    shutil.rmtree(self.backup_path)
+                shutil.copytree(self.save_path, self.backup_path)
+            shutil.rmtree(self.save_path)
+        self.save_path.mkdir(exist_ok=True)
         
         # Execute   
         self.downscale()
@@ -89,7 +110,7 @@ class UNet:
             )
         
         # Callbacks
-       
+        
         self.checkpoint = ModelCheckpoint(
             filepath=Path(self.save_path, "weights.h5"),
             save_weights_only=True,
@@ -104,7 +125,13 @@ class UNet:
             mode="min",
             )
         
-        self.callbacks = CustomCallback(self)
+        self.custom_callbacks = UNet.CustomCallbacks(self)
+        
+        self.callbacks = [
+            self.checkpoint, 
+            self.early_stopping, 
+            self.custom_callbacks,
+            ]
         
     def train(self):
     
@@ -117,85 +144,55 @@ class UNet:
             verbose=0,
             ) 
         
-    class CustomCallback(Callback):
+        plot_losses(
+            self.custom_callbacks.trn_losses,
+            self.custom_callbacks.val_losses,
+            )
+        
+    class CustomCallbacks(Callback):
         
         def __init__(self, unet):
-            
-            super(UNet.CustomCallback, self).__init__()
-            
-            # Fetch
+            super(UNet.CustomCallbacks, self).__init__()
             self.unet = unet
-
-            # Initialize
-            self.trn_loss = []
-            self.val_loss = []
-
-            # Checkpoints
-            self.checkpoint = ModelCheckpoint(
-                filepath=Path(self.unet.save_path, "weights.h5"),
-                save_weights_only=True,
-                save_best_only=True,
-                monitor="val_loss",
-                mode="min",
-                )
-            
-            # Early stopping
-            self.earlystopping = EarlyStopping(
-                patience=self.unet.patience,
-                monitor="val_loss",
-                mode="min",
-                )
+            self.trn_losses  = []
+            self.val_losses  = []
+            self.epoch_times = []
+    
+        def on_epoch_begin(self, epoch, logs=None):
+            self.epoch_start_time = time.time()
     
         def on_epoch_end(self, epoch, logs=None):
-            logs = logs or {}
+            epoch_time = time.time() - self.epoch_start_time
+            self.epoch_times.append(epoch_time)
             
             # Fetch 
-            
+            epochs = self.unet.epochs
             trn_loss = logs.get("loss")
             val_loss = logs.get("val_loss")
-            wait = self.unet.earlystopping.wait
-            patience = self.unet.earlystopping.patience
+            self.trn_losses.append(trn_loss)
+            self.val_losses.append(val_loss)
+            wait = self.unet.early_stopping.wait
+            patience = self.unet.early_stopping.patience
             
-            # Monitor losses
-            trn_loss = logs.get("loss")
-            val_loss = logs.get("val_loss")
-            self.trn_loss.append(trn_loss)
-            self.val_loss.append(val_loss)
+            # Initialize
+            epochs_nd = len(str(epochs))
+            patience_nd = len(str(epochs))
+            self.min_val_loss = np.min(self.val_losses)
             
-            # Monitor patience
-            wait = self.unet.earlystopping.wait
-            patience = self.unet.earlystopping.patience
+            # Print
             print(
-                f"Epoch {epoch:03d}/{self.unet.epochs:03d} - "
-                f"loss: {trn_loss:.4f}, "
-                f"val_loss: {val_loss:.4f}, "
-                f"patience: {wait}/{patience} ({np.min(self.val_loss):.4f})"
+                f"Epoch {epoch:>{epochs_nd}}/{epochs} | "
+                f"loss: {trn_loss:.4f} | "
+                f"val_loss: {val_loss:.4f} | "
+                f"wait: {wait:>{patience_nd}}/{patience} "
+                f"({self.min_val_loss:.4f})"
                 )
-
-#%% Class: CustomCallback -----------------------------------------------------
-
-# class CustomCallback(Callback):
-    
-#     def __init__(self, unet):
-        
-#         super(CustomCallback, self).__init__()
-#         self.unet = unet
-#         self.trn_loss, self.val_loss = [], []
-        
-#     def on_epoch_end(self, epoch, logs=None):
-        
-#         # Fetch loss
-#         trn_loss = logs["loss"]
-#         val_loss = logs.get("val_loss")
-#         self.trn_loss.append(trn_loss)
-#         self.val_loss.append(val_loss)
-        
-#         # Print
-#         print(
-#             f"epoch {epoch:03d}, "
-#             f"loss: {trn_loss:.4f}, "
-#             f"val_loss: {val_loss:.4f}"
-#             )
+            
+        def on_train_end(self, logs=None):
+            trainable_params = sum(
+                tf.keras.backend.count_params(w) 
+                for w in self.model.trainable_weights
+                )
 
 #%% Execute -------------------------------------------------------------------
 
@@ -238,15 +235,45 @@ if __name__ == "__main__":
     # Train
     unet = UNet(
         X, y, 
-        downscale_steps=2,
+        save_name="test",
+        downscale_steps=3,
         )
     X = unet.X
     y = unet.y
     unet.train()
-    
+
     # # Display
     # viewer = napari.Viewer()
     # viewer.add_image(X)
     # viewer.add_image(y)   
 
-    pass
+#%%
+
+    # def plot_losses(unet):
+        
+    #     # Fetch
+    #     epochs = unet.epochs
+    #     trn_losses = unet.custom_callbacks.trn_losses
+    #     val_losses = unet.custom_callbacks.val_losses
+    #     nparams = unet.history["trainable_params"][0]
+
+    #     # Initialize
+    #     epoch_time = np.cumsum(np.array(unet.history["epoch_time"]))
+    #     train_time = epoch_time[-1]
+    #     bvl = np.min(unet.history["val_loss"])
+    #     bvl_idx = np.argmin(unet.history["val_loss"])
+    #     bvl_time = epoch_time[bvl_idx]  
+        
+    #     # Plot
+    #     fig, axis = plt.subplots(1, 1, figsize=(6, 6))   
+    #     axis.plot(trn_losses, label="loss")
+    #     axis.plot(val_losses, label="val_loss")
+    #     axis.axvline(x=bvl_idx, color="k", linestyle=":", linewidth=1)
+    #     axis.axhline(y=bvl, color="k", linestyle=":", linewidth=1)
+        
+    #     axis.text(
+    #         bvl_idx / epochs, 1.05, f"{bvl_time:.2f}s", size=10, color="k",
+    #         transform=axis.transAxes, ha="center", va="center",
+    #         )
+
+    # plot_losses(unet)
