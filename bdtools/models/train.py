@@ -3,10 +3,13 @@
 import pickle
 import shutil
 import numpy as np
+from skimage import io
 from pathlib import Path
 from datetime import datetime
-import matplotlib.pyplot as plt
 import segmentation_models as sm
+
+# bdtools
+import metrics
 
 # Tensorflow
 from tensorflow.keras.optimizers import Adam
@@ -15,10 +18,9 @@ from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 # Skimage
 from skimage.transform import downscale_local_mean, rescale
 
-#%%
-
-
-
+# Matplotlib
+from matplotlib import cm
+import matplotlib.pyplot as plt
 
 #%%
 
@@ -33,6 +35,7 @@ class UNet:
             epochs=100,
             batch_size=32,
             validation_split=0.2,
+            metric="soft_dice_coef",
             learning_rate=0.001,
             patience=20,
             weights_path="",
@@ -47,6 +50,7 @@ class UNet:
         self.epochs = epochs
         self.batch_size = batch_size
         self.validation_split = validation_split
+        self.metric = metric
         self.learning_rate = learning_rate
         self.patience = patience
         self.weights_path = weights_path
@@ -93,9 +97,9 @@ class UNet:
         
         self.model = sm.Unet(
             self.backbone, 
-            input_shape=(None, None, 1), 
-            classes=1, 
-            activation="sigmoid", 
+            input_shape=(None, None, 1), # Parameter
+            classes=1, # Parameter
+            activation="sigmoid", # Parameter
             encoder_weights=None,
             )
         
@@ -105,17 +109,15 @@ class UNet:
         
         self.model.compile(
             optimizer=Adam(learning_rate=self.learning_rate),
-            loss="binary_crossentropy", 
-            metrics=["mse"],
+            loss="binary_crossentropy", # Parameter
+            metrics=[getattr(metrics, self.metric)],
             )
-        
-        # Callbacks
-        
+
         self.checkpoint = ModelCheckpoint(
             filepath=Path(self.save_path, "weights.h5"),
             save_weights_only=True,
             save_best_only=True,
-            monitor="val_loss",
+            monitor="val_loss", 
             mode="min",
             )
         
@@ -124,13 +126,11 @@ class UNet:
             monitor='val_loss',
             mode="min",
             )
-        
-        self.custom_callbacks = UNet.CustomCallbacks(self)
-        
+
         self.callbacks = [
             self.checkpoint, 
             self.early_stopping, 
-            self.custom_callbacks,
+            self.CustomCallbacks(self),
             ]
         
     def train(self):
@@ -144,56 +144,174 @@ class UNet:
             verbose=0,
             ) 
         
-        plot_losses(
-            self.custom_callbacks.trn_losses,
-            self.custom_callbacks.val_losses,
-            )
+    def predict(self, X):
+        return self.model.predict(X.squeeze())
         
     class CustomCallbacks(Callback):
         
         def __init__(self, unet):
             super(UNet.CustomCallbacks, self).__init__()
-            self.unet = unet
-            self.trn_losses  = []
-            self.val_losses  = []
-            self.epoch_times = []
-    
-        def on_epoch_begin(self, epoch, logs=None):
-            self.epoch_start_time = time.time()
-    
-        def on_epoch_end(self, epoch, logs=None):
-            epoch_time = time.time() - self.epoch_start_time
-            self.epoch_times.append(epoch_time)
             
-            # Fetch 
-            epochs = self.unet.epochs
-            trn_loss = logs.get("loss")
-            val_loss = logs.get("val_loss")
-            self.trn_losses.append(trn_loss)
-            self.val_losses.append(val_loss)
-            wait = self.unet.early_stopping.wait
-            patience = self.unet.early_stopping.patience
+            # Fetch
+            self.unet = unet    
+            self.epochs = unet.epochs
             
             # Initialize
-            epochs_nd = len(str(epochs))
-            patience_nd = len(str(epochs))
-            self.min_val_loss = np.min(self.val_losses)
+            self.trn_losses  = []
+            self.val_losses  = []
+            self.trn_metrics = []
+            self.val_metrics = []
+            self.epoch_times = []
+            self.epoch_durations = []
             
+        def print_log(self):
+            
+            # Fetch
+            epoch = self.epoch
+            epochs = self.epochs
+            trn_loss = self.trn_losses[-1]
+            val_loss = self.val_losses[-1]
+            best_val_loss = self.best_val_loss
+            trn_metric = self.trn_metrics[-1]
+            val_metric = self.val_metrics[-1]
+            wait = self.unet.early_stopping.wait
+            patience = self.unet.patience
+
             # Print
             print(
-                f"Epoch {epoch:>{epochs_nd}}/{epochs} | "
-                f"loss: {trn_loss:.4f} | "
-                f"val_loss: {val_loss:.4f} | "
-                f"wait: {wait:>{patience_nd}}/{patience} "
-                f"({self.min_val_loss:.4f})"
+                f"epoch {epoch:>{len(str(epochs))}}/{epochs} "
+                f"wait {wait:>{len(str(patience))}}/{patience} "
+                f"({best_val_loss:.4f}) "
+                f"l|{trn_loss:.4f}| "
+                f"vl|{val_loss:.4f}| "
+                f"m|{trn_metric:.4f}| "
+                f"vm|{val_metric:.4f}| "
                 )
             
-        def on_train_end(self, logs=None):
-            trainable_params = sum(
-                tf.keras.backend.count_params(w) 
-                for w in self.model.trainable_weights
+        def predict(self):
+            
+            # Predict
+            prds = self.unet.predict(unet.X_val)
+            
+            # Plot
+            plt.ioff() # turn off inline plot
+            idxs = np.random.randint(0, prds.shape[0], size=20) 
+            for i, idx in enumerate(idxs):
+                            
+                fig, (ax0, ax1, ax2) = plt.subplots(
+                    nrows=1, ncols=3, figsize=(15, 5))
+                cmap0, cmap1, cmap2 = cm.gray, cm.plasma, cm.plasma
+                shrink = 0.75
+                
+                ax0.imshow(unet.X_val[idx], cmap=cmap0)
+                ax0.set_title("image")
+                ax0.set_xlabel("pixels")
+                ax0.set_ylabel("pixels")
+                fig.colorbar(
+                    cm.ScalarMappable(cmap=cmap0), ax=ax0, shrink=shrink)
+        
+                ax1.imshow(unet.y_val[idx], cmap=cmap1)
+                ax1.set_title("mask")
+                ax1.set_xlabel("pixels")
+                fig.colorbar(
+                    cm.ScalarMappable(cmap=cmap1), ax=ax1, shrink=shrink)
+                
+                ax2.imshow(prds[idx], cmap=cmap2)
+                ax2.set_title("prediction")
+                ax2.set_xlabel("pixels")
+                fig.colorbar(
+                    cm.ScalarMappable(cmap=cmap2), ax=ax2, shrink=shrink)
+                
+                # Save
+                plt.tight_layout()
+                plt.savefig(
+                    self.unet.save_path / f"predict_example_{i:02d}.png",
+                    format="png"
+                    )
+                plt.close(fig)
+            
+        def plot(self):
+                   
+            # Fetch
+            epochs = self.epochs
+            trn_losses = self.trn_losses
+            val_losses = self.val_losses
+            best_epoch = self.best_epoch
+            best_val_loss = self.best_val_loss
+            best_epoch_time = self.epoch_times[best_epoch]
+            save_name = self.unet.save_name
+            
+            # Info
+            infos = (
+                f"input shape      : "
+                f"{self.unet.X_trn.shape[0]}x" 
+                f"{self.unet.X_trn.shape[1]}x"
+                f"{self.unet.X_trn.shape[2]}\n"
+                f"downscale steps  : {self.unet.downscale_steps}\n"
+                f"backbone         : {self.unet.backbone}\n"
+                f"batch size       : {self.unet.batch_size}\n"
+                f"validation_split : {self.unet.validation_split}\n"
+                f"learning rate    : {self.unet.learning_rate}\n"
                 )
-
+            
+            # Plot
+            fig, axis = plt.subplots(1, 1, figsize=(6, 6))   
+            axis.plot(trn_losses, label="loss")
+            axis.plot(val_losses, label="val_loss")
+            axis.axvline(
+                x=best_epoch, color="k", linestyle=":", linewidth=1)
+            axis.axhline(
+                y=best_val_loss, color="k", linestyle=":", linewidth=1)
+            axis.text(
+                best_epoch / epochs, 1.05, f"{best_epoch_time:.2f}s", 
+                size=10, color="k",
+                transform=axis.transAxes, ha="center", va="center",
+                )
+            axis.text(
+                1.05, best_val_loss, f"{best_val_loss:.4f}", 
+                size=10, color="k",
+                transform=axis.transAxes, ha="left", va="center",
+                )
+            axis.text(
+                0.08, 0.85, infos, 
+                size=8, color="k",
+                transform=axis.transAxes, ha="left", va="top", 
+                fontfamily="Consolas",
+                )
+            axis.set_title(save_name)
+            axis.set_xlim(0, epochs)
+            axis.set_ylim(0, 1)
+            axis.set_xlabel("epochs")
+            axis.set_ylabel("loss")
+            axis.legend(
+                loc="upper left", frameon=False, 
+                bbox_to_anchor=(0.05, 0.975), 
+                )
+            
+            # Save    
+            plt.tight_layout()
+            plt.savefig(self.unet.save_path / "train_plot.png", format="png")
+            
+        def on_epoch_begin(self, epoch, logs=None):
+            self.epoch = epoch
+            self.epoch_t0 = time.time()
+    
+        def on_epoch_end(self, epoch, logs=None):
+            epoch_duration = time.time() - self.epoch_t0
+            self.epoch_durations.append(epoch_duration)
+            self.epoch_times.append(np.sum(self.epoch_durations))
+            self.trn_losses.append(logs.get("loss"))
+            self.val_losses.append(logs.get("val_loss"))
+            self.trn_metrics.append(logs.get(self.unet.metric))
+            self.val_metrics.append(logs.get("val_" + self.unet.metric))
+            self.best_epoch = np.argmin(self.val_losses)
+            self.best_val_loss = np.min(self.val_losses)
+            self.print_log()
+            
+        def on_train_end(self, logs=None):
+            self.predict()
+            self.plot()
+            
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -236,44 +354,17 @@ if __name__ == "__main__":
     unet = UNet(
         X, y, 
         save_name="test",
+        epochs=10,
         downscale_steps=3,
         )
     X = unet.X
     y = unet.y
     unet.train()
+    
+    # val_prds = unet.val_prds
 
     # # Display
     # viewer = napari.Viewer()
-    # viewer.add_image(X)
-    # viewer.add_image(y)   
-
-#%%
-
-    # def plot_losses(unet):
-        
-    #     # Fetch
-    #     epochs = unet.epochs
-    #     trn_losses = unet.custom_callbacks.trn_losses
-    #     val_losses = unet.custom_callbacks.val_losses
-    #     nparams = unet.history["trainable_params"][0]
-
-    #     # Initialize
-    #     epoch_time = np.cumsum(np.array(unet.history["epoch_time"]))
-    #     train_time = epoch_time[-1]
-    #     bvl = np.min(unet.history["val_loss"])
-    #     bvl_idx = np.argmin(unet.history["val_loss"])
-    #     bvl_time = epoch_time[bvl_idx]  
-        
-    #     # Plot
-    #     fig, axis = plt.subplots(1, 1, figsize=(6, 6))   
-    #     axis.plot(trn_losses, label="loss")
-    #     axis.plot(val_losses, label="val_loss")
-    #     axis.axvline(x=bvl_idx, color="k", linestyle=":", linewidth=1)
-    #     axis.axhline(y=bvl, color="k", linestyle=":", linewidth=1)
-        
-    #     axis.text(
-    #         bvl_idx / epochs, 1.05, f"{bvl_time:.2f}s", size=10, color="k",
-    #         transform=axis.transAxes, ha="center", va="center",
-    #         )
-
-    # plot_losses(unet)
+    # viewer.add_image(X_val)
+    # viewer.add_image(y_val) 
+    
