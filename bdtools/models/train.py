@@ -35,6 +35,8 @@ class UNet:
             epochs=100,
             batch_size=32,
             validation_split=0.2,
+            classes=1,
+            activation="sigmoid",
             metric="soft_dice_coef",
             learning_rate=0.001,
             patience=20,
@@ -50,11 +52,13 @@ class UNet:
         self.epochs = epochs
         self.batch_size = batch_size
         self.validation_split = validation_split
+        self.classes = classes
+        self.activation = activation
         self.metric = metric
         self.learning_rate = learning_rate
         self.patience = patience
         self.weights_path = weights_path
-        
+
         # Model name
         self.date = datetime.now().strftime('%Y-%m-%d_%Hh%Mm%Ss')
         if not self.save_name:
@@ -98,8 +102,8 @@ class UNet:
         self.model = sm.Unet(
             self.backbone, 
             input_shape=(None, None, 1), # Parameter
-            classes=1, # Parameter
-            activation="sigmoid", # Parameter
+            classes=self.classes,
+            activation=self.activation,
             encoder_weights=None,
             )
         
@@ -112,7 +116,9 @@ class UNet:
             loss="binary_crossentropy", # Parameter
             metrics=[getattr(metrics, self.metric)],
             )
-
+        
+    def train(self):
+        
         self.checkpoint = ModelCheckpoint(
             filepath=Path(self.save_path, "weights.h5"),
             save_weights_only=True,
@@ -132,8 +138,6 @@ class UNet:
             self.early_stopping, 
             self.CustomCallbacks(self),
             ]
-        
-    def train(self):
     
         self.history = self.model.fit(
             x=self.X_trn, y=self.y_trn,
@@ -188,14 +192,89 @@ class UNet:
                 f"vm|{val_metric:.4f}| "
                 )
             
-        def predict(self):
+        def plot(self):
+                   
+            # Fetch
+            epochs = self.epochs
+            trn_losses = self.trn_losses
+            val_losses = self.val_losses
+            best_epoch = self.best_epoch
+            best_epoch_time = self.epoch_times[best_epoch]
+            best_val_loss = self.best_val_loss
+            best_val_metric = self.val_metrics[best_epoch]
+            metric = self.unet.metric
+            save_name = self.unet.save_name
+            
+            # Info
+            infos = (
+                f"input shape      : "
+                f"{self.unet.X_trn.shape[0]}x" 
+                f"{self.unet.X_trn.shape[1]}x"
+                f"{self.unet.X_trn.shape[2]}\n"
+                f"downscale steps  : {self.unet.downscale_steps}\n"
+                f"backbone         : {self.unet.backbone}\n"
+                f"batch size       : {self.unet.batch_size}\n"
+                f"validation_split : {self.unet.validation_split}\n"
+                f"learning rate    : {self.unet.learning_rate}\n"
+                f"best_val_loss    : {best_val_loss:.4f}\n"
+                f"best_val_metric  : {best_val_metric:.4f} ({metric})\n"
+                )
+            
+            # Plot
+            fig, axis = plt.subplots(1, 1, figsize=(6, 6))   
+            axis.plot(trn_losses, label="loss")
+            axis.plot(val_losses, label="val_loss")
+            axis.axvline(
+                x=best_epoch, color="k", linestyle=":", linewidth=1)
+            axis.axhline(
+                y=best_val_loss, color="k", linestyle=":", linewidth=1)
+            axis.text(
+                best_epoch / epochs, 1.025, f"{best_epoch_time:.2f}s", 
+                size=10, color="k",
+                transform=axis.transAxes, ha="center", va="center",
+                )
+            axis.text(
+                1.025, best_val_loss, f"{best_val_loss:.4f}", 
+                size=10, color="k",
+                transform=axis.transAxes, ha="left", va="center",
+                )
+            axis.text(
+                0.08, 0.85, infos, 
+                size=8, color="k",
+                transform=axis.transAxes, ha="left", va="top", 
+                fontfamily="Consolas",
+                )
+            
+            axis.set_title(save_name)
+            axis.set_xlim(0, epochs)
+            axis.set_ylim(0, 1)
+            axis.set_xlabel("epochs")
+            axis.set_ylabel("loss")
+            axis.legend(
+                loc="upper left", frameon=False, 
+                bbox_to_anchor=(0.05, 0.975), 
+                )
+            
+            # Save    
+            plt.tight_layout()
+            plt.savefig(self.unet.save_path / "train_plot.png", format="png")
+            plt.show()
+            
+        def predict(self, size=50):
+
+            # Saving directory
+            save_path = Path(self.unet.save_path, "predict_examples")
+            if save_path.exists():
+                shutil.rmtree(save_path)
+            else:
+                save_path.mkdir(exist_ok=True)
             
             # Predict
-            prds = self.unet.predict(unet.X_val)
+            idxs = np.random.randint(0, unet.X_val.shape[0], size=size) 
+            prds = self.unet.predict(unet.X_val[idxs, ...])
             
             # Plot
             plt.ioff() # turn off inline plot
-            idxs = np.random.randint(0, prds.shape[0], size=20) 
             for i, idx in enumerate(idxs):
                             
                 fig, (ax0, ax1, ax2) = plt.subplots(
@@ -216,7 +295,7 @@ class UNet:
                 fig.colorbar(
                     cm.ScalarMappable(cmap=cmap1), ax=ax1, shrink=shrink)
                 
-                ax2.imshow(prds[idx], cmap=cmap2)
+                ax2.imshow(prds[i], cmap=cmap2)
                 ax2.set_title("prediction")
                 ax2.set_xlabel("pixels")
                 fig.colorbar(
@@ -225,73 +304,11 @@ class UNet:
                 # Save
                 plt.tight_layout()
                 plt.savefig(
-                    self.unet.save_path / f"predict_example_{i:02d}.png",
+                    save_path / f"predict_example_{i:02d}.png",
                     format="png"
                     )
                 plt.close(fig)
-            
-        def plot(self):
-                   
-            # Fetch
-            epochs = self.epochs
-            trn_losses = self.trn_losses
-            val_losses = self.val_losses
-            best_epoch = self.best_epoch
-            best_val_loss = self.best_val_loss
-            best_epoch_time = self.epoch_times[best_epoch]
-            save_name = self.unet.save_name
-            
-            # Info
-            infos = (
-                f"input shape      : "
-                f"{self.unet.X_trn.shape[0]}x" 
-                f"{self.unet.X_trn.shape[1]}x"
-                f"{self.unet.X_trn.shape[2]}\n"
-                f"downscale steps  : {self.unet.downscale_steps}\n"
-                f"backbone         : {self.unet.backbone}\n"
-                f"batch size       : {self.unet.batch_size}\n"
-                f"validation_split : {self.unet.validation_split}\n"
-                f"learning rate    : {self.unet.learning_rate}\n"
-                )
-            
-            # Plot
-            fig, axis = plt.subplots(1, 1, figsize=(6, 6))   
-            axis.plot(trn_losses, label="loss")
-            axis.plot(val_losses, label="val_loss")
-            axis.axvline(
-                x=best_epoch, color="k", linestyle=":", linewidth=1)
-            axis.axhline(
-                y=best_val_loss, color="k", linestyle=":", linewidth=1)
-            axis.text(
-                best_epoch / epochs, 1.05, f"{best_epoch_time:.2f}s", 
-                size=10, color="k",
-                transform=axis.transAxes, ha="center", va="center",
-                )
-            axis.text(
-                1.05, best_val_loss, f"{best_val_loss:.4f}", 
-                size=10, color="k",
-                transform=axis.transAxes, ha="left", va="center",
-                )
-            axis.text(
-                0.08, 0.85, infos, 
-                size=8, color="k",
-                transform=axis.transAxes, ha="left", va="top", 
-                fontfamily="Consolas",
-                )
-            axis.set_title(save_name)
-            axis.set_xlim(0, epochs)
-            axis.set_ylim(0, 1)
-            axis.set_xlabel("epochs")
-            axis.set_ylabel("loss")
-            axis.legend(
-                loc="upper left", frameon=False, 
-                bbox_to_anchor=(0.05, 0.975), 
-                )
-            
-            # Save    
-            plt.tight_layout()
-            plt.savefig(self.unet.save_path / "train_plot.png", format="png")
-            
+                       
         def on_epoch_begin(self, epoch, logs=None):
             self.epoch = epoch
             self.epoch_t0 = time.time()
@@ -311,6 +328,13 @@ class UNet:
         def on_train_end(self, logs=None):
             self.predict()
             self.plot()
+            
+#%%
+
+class UNetPredict:
+    
+    def __init__():
+        pass
             
 #%% Execute -------------------------------------------------------------------
 
