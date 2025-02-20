@@ -1,0 +1,6 @@
+{
+    "classes": 1,
+    "backbone": "resnet18",
+    "activation": "sigmoid",
+    "downscale_steps": 1
+}

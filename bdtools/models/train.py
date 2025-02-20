@@ -22,25 +22,79 @@ from skimage.transform import downscale_local_mean, rescale
 from matplotlib import cm
 import matplotlib.pyplot as plt
 
-#%%
+#%% Comments ------------------------------------------------------------------
+
+'''
+- Procedure Train :
+    
+    - 1) create model
+    - 2) train model
+    - 3) save model + weights
+    
+    need : 
+        - save_name
+        - X, y
+        - new downscale_steps
+        - new build_params
+        - new train_params
+        
+
+- Procedure reTrain : 
+    
+    - 1) load model + weights
+    - 2) re-train model
+    
+    need : 
+        - load_name
+        - X, y
+        - **downscale_steps
+        - **build_params
+        - new train_params
+        
+    
+- Procedure Predict :
+    
+    - 1) load model + weights 
+    - 2) predict
+    
+    need : 
+        - load_name
+        - X
+        - **downscale_steps
+        - **build_params
+
+'''
+
+#%% UNet() --------------------------------------------------------------------
 
 class UNet:
        
     def __init__(
+            
+            # General
             self, X, y,
             save_name="",
+            load_name="",
             save_path=Path.cwd(),
+            
+            # Data
             downscale_steps=0, 
+            
+            # Build
+            classes=1,
             backbone="resnet18",
+            activation="sigmoid",
+            load_model="",
+            load_weights="",
+            
+            # Train
             epochs=100,
             batch_size=32,
             validation_split=0.2,
-            classes=1,
-            activation="sigmoid",
             metric="soft_dice_coef",
             learning_rate=0.001,
             patience=20,
-            weights_path="",
+
             ):
         
         # Fetch
@@ -57,7 +111,20 @@ class UNet:
         self.metric = metric
         self.learning_rate = learning_rate
         self.patience = patience
-        self.weights_path = weights_path
+        self.load_weights = load_weights
+        
+        # 
+        build_params = {
+            "backnone"   : self.backbone,
+            "classes"    : self.classes,
+            "activation" : self.activation,
+            }
+        
+        # train_params = {
+        #     "backnone"   : self.backbone,
+        #     "classes"    : self.classes,
+        #     "activation" : self.activation,
+        #     }
 
         # Model name
         self.date = datetime.now().strftime('%Y-%m-%d_%Hh%Mm%Ss')
@@ -70,7 +137,7 @@ class UNet:
         self.save_path = Path(Path.cwd(), self.save_name)
         self.backup_path = Path(Path.cwd(), f"{self.save_name}_backup")
         if self.save_path.exists():
-            if self.weights_path and self.weights_path.exists():
+            if self.load_weights and self.load_weights.exists():
                 if self.backup_path.exists():
                     shutil.rmtree(self.backup_path)
                 shutil.copytree(self.save_path, self.backup_path)
@@ -81,6 +148,30 @@ class UNet:
         self.downscale()
         self.split()
         self.build()        
+                
+#%% Build() -------------------------------------------------------------------
+        
+    def build(self):
+        
+        self.model = sm.Unet(
+            self.backbone, 
+            input_shape=(None, None, 1), # Parameter
+            classes=self.classes,
+            activation=self.activation,
+            encoder_weights=None,
+            )
+        
+        if self.load_weights:
+            self.model.load_weights(
+                Path(Path.cwd(), f"{self.save_name}_backup", "weights.h5"))
+        
+        self.model.compile(
+            optimizer=Adam(learning_rate=self.learning_rate),
+            loss="binary_crossentropy", # Parameter
+            metrics=[getattr(metrics, self.metric)],
+            )
+        
+#%% Train() -------------------------------------------------------------------
         
     def downscale(self):
         if self.downscale_steps > 0:
@@ -96,27 +187,7 @@ class UNet:
         self.y_trn = self.y[idx[n_val:]]
         self.X_val = self.X[idx[:n_val]]
         self.y_val = self.y[idx[:n_val]]
-        
-    def build(self):
-        
-        self.model = sm.Unet(
-            self.backbone, 
-            input_shape=(None, None, 1), # Parameter
-            classes=self.classes,
-            activation=self.activation,
-            encoder_weights=None,
-            )
-        
-        if self.weights_path:
-            self.model.load_weights(
-                Path(Path.cwd(), f"{self.save_name}_backup", "weights.h5"))
-        
-        self.model.compile(
-            optimizer=Adam(learning_rate=self.learning_rate),
-            loss="binary_crossentropy", # Parameter
-            metrics=[getattr(metrics, self.metric)],
-            )
-        
+
     def train(self):
         
         self.checkpoint = ModelCheckpoint(
@@ -148,9 +219,13 @@ class UNet:
             verbose=0,
             ) 
         
+#%% Predict() -----------------------------------------------------------------
+        
     def predict(self, X):
         return self.model.predict(X.squeeze())
         
+#%% CustomCallbacks() ---------------------------------------------------------
+    
     class CustomCallbacks(Callback):
         
         def __init__(self, unet):
@@ -172,7 +247,7 @@ class UNet:
             
             # Fetch
             epoch = self.epoch
-            epochs = self.epochs
+            epochs = self.epochs - 1
             trn_loss = self.trn_losses[-1]
             val_loss = self.val_losses[-1]
             best_val_loss = self.best_val_loss
@@ -266,6 +341,7 @@ class UNet:
             save_path = Path(self.unet.save_path, "predict_examples")
             if save_path.exists():
                 shutil.rmtree(save_path)
+                save_path.mkdir(exist_ok=True)
             else:
                 save_path.mkdir(exist_ok=True)
             
@@ -373,6 +449,12 @@ if __name__ == "__main__":
         )
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
+    
+    # Model 
+    unet = UNet(
+        save_name="test",
+        save_path=Path.cwd(),
+        )
     
     # Train
     unet = UNet(

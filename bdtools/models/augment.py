@@ -69,10 +69,10 @@ def augment(
         "sigma_high" : 3,
         
         # Noise
-        "sgain_low"   : 0.50,
-        "sgain_high"  : 1.00,
-        "rnoise_low"  : 6,
-        "rnoise_high" : 10,
+        "sgain_low"   : 20,
+        "sgain_high"  : 50,
+        "rnoise_low"  : 2,
+        "rnoise_high" : 4,
         
         # Grid distord
         "nsteps_low"  : 1,
@@ -90,9 +90,9 @@ def augment(
         img = img * (img_mean / np.mean(img))
         return img
     
-    def _noise(img, shot_gain=0.5, read_noise_std=5):
+    def _noise(img, shot_gain=0.1, read_noise_std=5):
         img_std = np.std(img) 
-        img = np.random.poisson(img * shot_gain) / shot_gain
+        # img = np.random.poisson(img * shot_gain) / shot_gain
         img += np.random.normal(
             loc=0.0, scale=img_std / read_noise_std, size=img.shape)
         return img
@@ -104,11 +104,15 @@ def augment(
             img, msk = np.fliplr(img), np.fliplr(msk)
         if img.shape[0] == img.shape[1]:
             if np.random.rand() < 0.5:
-                img = np.rot90(img, k=np.random.choice([-1, 1]))
-                msk = np.rot90(msk, k=np.random.choice([-1, 1]))
+                k = np.random.choice([-1, 1])
+                img = np.rot90(img, k=k)
+                msk = np.rot90(msk, k=k)
         return img, msk
     
     def _augment(img, msk):
+        
+        img = img.copy()
+        msk = msk.copy()
         
         if np.random.rand() < gamma_p:
             gamma = np.random.uniform(
@@ -174,30 +178,46 @@ if __name__ == "__main__":
     import napari
     from skimage import io
     from pathlib import Path
+    from bdtools.models import preprocess
 
     # Parameters
-    dataset = "em_mito"
-    # dataset = "fluo_nuclei"
-    iterations = 500 # n of augmented iterations 
+    # dataset = "em_mito"
+    dataset = "fluo_nuclei"
+    iterations = 5000 # n of augmented iterations 
+    patch_size = 256
     
     # Paths
     local_path = Path.cwd().parent.parent / "_local"
-    img_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
-    msk_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
+    X_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
+    y_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
     
     # Load images & masks
-    imgs = io.imread(img_path)
-    msks = io.imread(msk_path)
+    X = io.imread(X_path)
+    y = io.imread(y_path)
+       
+    # Preprocess
+    print("preprocess : ", end="", flush=True)
+    t0 = time.time()
+    X, y = preprocess(
+        X, msks=y, 
+        img_norm="global",
+        patch_size=patch_size,
+        patch_overlap=0,
+        )
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
         
     # Augment tests
-    print(f"augment iterations = {iterations}", end=" ", flush=True)
+    print("augment : ", end="", flush=True)
     t0 = time.time()
-    aug_imgs, aug_msks = augment(imgs, msks, iterations)
+    aug_X, aug_y = augment(
+        X, y, iterations,
+        gamma_p=0.0, gblur_p=0.0, noise_p=0.1, flip_p=0.0, distord_p=0.0)
     t1 = time.time()
-    print(f"({t1 - t0:.3f}s)")
+    print(f"{t1 - t0:.3f}s")
         
     # Display
     viewer = napari.Viewer()
-    contrast_limits = [0, 255]
-    viewer.add_image(aug_imgs, contrast_limits=contrast_limits)
-    viewer.add_labels(aug_msks)
+    contrast_limits = [0, 1]
+    viewer.add_image(aug_X, contrast_limits=contrast_limits)
+    viewer.add_labels(aug_y.astype("uint8"))
