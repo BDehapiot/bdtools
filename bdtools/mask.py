@@ -76,9 +76,9 @@ def get_edt(
         raise TypeError("Provided array must be bool or integers labels")
         
     if np.all(arr == arr.flat[0]):
-        warnings.warn(
-            f"edt skipped, input array is full of {arr.flat[0]}."
-            )
+        # warnings.warn(
+        #     f"edt skipped, input array is full of {arr.flat[0]}."
+        #     )
         return np.zeros_like(arr, dtype="bool")
     
     valid_targets = ["foreground", "background"]
@@ -139,51 +139,5 @@ def get_edt(
             
 #%% Execute -------------------------------------------------------------------
 
-if __name__ == "__main__":
-
-    import time
-    import napari
-    from tests.mask_test import generate_random_array     
-
-    # Parameters    
-    nZ, nY, nX, nObj = 10, 256, 256, 10
-    # min_radius = nY * 0.02
-    # max_radius = min_radius * 3
-    min_radius = 8
-    max_radius = 12
-    
-    # -------------------------------------------------------------------------
-
-    t0 = time.time(); 
-    print("generate_random_array() : ", end='')
-
-    arr = generate_random_array(nZ, nY, nX, nObj, min_radius, max_radius)
-    # arr = arr > 0
-
-    t1 = time.time()
-    print(f"{(t1-t0):<5.5f}s")
-        
-    # -------------------------------------------------------------------------
-    
-    t0 = time.time(); 
-    print("get_edt() : ", end='')
-    
-    edt = get_edt(
-        arr, 
-        target="foreground",
-        sampling=1,
-        normalize="none", 
-        rescale_factor=0.25, 
-        parallel=True
-        )
-    
-    t1 = time.time()
-    print(f"{(t1-t0):<5.5f}s")
-        
-    # -------------------------------------------------------------------------
-    
-    # Display
-    viewer = napari.Viewer()
-    viewer.add_labels(arr) 
-    viewer.add_image(edt, blending="additive", colormap="gist_earth") 
-
+if __name__ == "__main__": 
+    pass

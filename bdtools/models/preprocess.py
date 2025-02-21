@@ -15,10 +15,10 @@ from skimage.segmentation import find_boundaries
 
 def preprocess(
         imgs, msks=None,
-        img_norm="global",
-        msk_type="normal", 
         patch_size=256, 
         patch_overlap=0,
+        img_norm="global",
+        msk_type="normal", 
         ):
     
     """ 
@@ -114,7 +114,12 @@ def preprocess(
             if msk_type == "normal":
                 msk = msk > 0
             elif msk_type == "edt":
-                msk = get_edt(msk, normalize="object", parallel=False)
+                msk = get_edt(
+                    msk, 
+                    normalize="object", 
+                    rescale_factor=0.5, 
+                    parallel=False,
+                    )
             elif msk_type == "bounds":
                 msk = find_boundaries(msk)           
             
@@ -205,31 +210,36 @@ if __name__ == "__main__":
     # Parameters
     dataset = "em_mito"
     # dataset = "fluo_nuclei"
-    img_norm = "image"
-    msk_type = "normal"
+    img_norm = "global"
+    msk_type = "edt"
     patch_size = 256
     patch_overlap = 0
     
     # Paths
     local_path = Path.cwd().parent.parent / "_local"
-    img_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
-    msk_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
+    X_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
+    y_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
     
     # Load images & masks
-    imgs = io.imread(img_path)
-    msks = io.imread(msk_path)
+    X = io.imread(X_path)
+    y = io.imread(y_path)
     
     # Preprocess tests
-    print("preprocess : ", end=" ", flush=True)
+    print("preprocess : ", end="", flush=True)
     t0 = time.time()
-    prp_imgs, prp_msks = preprocess(
-        imgs, msks, 
+    X_prp, y_prp = preprocess(
+        X, y, 
         img_norm=img_norm,
         msk_type=msk_type, 
         patch_size=patch_size, 
         patch_overlap=patch_overlap,
         )
     t1 = time.time()
-    print(f"({t1 - t0:.3f}s)")
+    print(f"{t1 - t0:.3f}s")
+    
+    # Display
+    viewer = napari.Viewer()
+    viewer.add_image(X_prp)
+    viewer.add_image(y_prp) 
     
     

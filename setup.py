@@ -17,17 +17,5 @@ setup(
         "joblib",
         "numba",
     ],
-    extras_require={
-        "tf-gpu": [
-            "napari[all]",
-            "albumentations",
-            "tensorflow-gpu==2.10",
-        ],
-        "tf-nogpu": [
-            "napari[all]",
-            "albumentations",
-            "tensorflow==2.10",
-        ],
-    },
     python_requires='>=3.9',
 )
