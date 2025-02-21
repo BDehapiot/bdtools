@@ -28,26 +28,6 @@ import matplotlib.pyplot as plt
 #%% Comments ------------------------------------------------------------------
 
 '''
-- improve plotting (fit to max epoch, better y axis limit)
-- Make a stop procedure
-
-try:
-    self.history = self.model.fit(
-        x=X_trn, y=y_trn,
-        validation_data=(X_val, y_val),
-        batch_size=self.batch_size,
-        epochs=self.epochs,
-        callbacks=[CallBacks(self)],
-        verbose=1,
-    )
-except KeyboardInterrupt:
-    print("Training interrupted. Finishing current epoch and saving outputs.")
-    # Set stop_training flag so that the current epoch can conclude gracefully
-    self.model.stop_training = True
-    # Optionally, if needed, manually call on_train_end for each callback:
-    for cb in self.model.callbacks:
-        cb.on_train_end(logs={})
-
 '''
 
 #%% Function(s) ---------------------------------------------------------------
@@ -167,6 +147,7 @@ class UNet:
                 X, y, split=validation_split)
         else:
             self.X_trn, self.y_trn = X, y
+            self.X_val, self.y_val = X_val, y_val
 
         # Downscale
         if self.downscale_steps > 0:
@@ -182,15 +163,27 @@ class UNet:
             metrics=[getattr(metrics, metric)],
             )
         
-        # Train
-        self.history = self.model.fit(
-            x=X_trn, y=y_trn,
-            validation_data=(X_val, y_val),
-            batch_size=self.batch_size,
-            epochs=self.epochs,
-            callbacks=[CallBacks(self)],
-            verbose=0,
-            )
+        # Callbacks
+        self.callbacks = [CallBacks(self)]
+        
+        try:
+        
+            # Train
+            self.history = self.model.fit(
+                x=X_trn, y=y_trn,
+                validation_data=(X_val, y_val),
+                batch_size=self.batch_size,
+                epochs=self.epochs,
+                callbacks=self.callbacks,
+                verbose=0,
+                )
+        
+        # Interrupt
+        except KeyboardInterrupt:
+            print("Training interrupted.")
+            self.model.stop_training = True
+            for cb in self.callbacks:
+                cb.on_train_end(logs={})
 
         # train_params
         self.train_params ={
@@ -316,9 +309,9 @@ class CallBacks(Callback):
         print(
             f"epoch {epoch:>{len(str(epochs))}}/{epochs} "
             f"wait {wait:>{len(str(patience))}}/{patience} "
-            f"({best_val_loss:.4f}) "
+            f"bvl({best_val_loss:.4f}) "
             f"l|{trn_loss:.4f}| "
-            f"vl|{val_loss:.4f}| "
+            f"vl({val_loss:.4f}) "
             f"m|{trn_metric:.4f}| "
             f"vm|{val_metric:.4f}| "
             )
@@ -377,7 +370,7 @@ class CallBacks(Callback):
             )
         
         axis.set_title(save_name)
-        axis.set_xlim(0, epochs)
+        axis.set_xlim(0, len(self.trn_losses))
         axis.set_ylim(0, 1)
         axis.set_xlabel("epochs")
         axis.set_ylabel("loss")
@@ -450,78 +443,77 @@ if __name__ == "__main__":
     
     # Model (training procedure) ----------------------------------------------
     
-    # # Preprocess
-    # t0 = time.time()
-    # print("preprocess :", end=" ", flush=True)
-    # X, y = preprocess(
-    #     X, msks=y, 
-    #     img_norm="global",
-    #     patch_size=patch_size,
-    #     patch_overlap=0,
-    #     )
-    # t1 = time.time()
-    # print(f"{t1 - t0:.3f}s")
+    # Preprocess
+    t0 = time.time()
+    print("preprocess :", end=" ", flush=True)
+    X, y = preprocess(
+        X, msks=y, img_norm="global", msk_type="edt", patch_size=patch_size)
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
     
-    # # Augment
-    # t0 = time.time()
-    # print("augment :", end=" ", flush=True)
-    # X, y = augment(
-    #     X, y, 5000,
-    #     gamma_p=0.5, 
-    #     gblur_p=0.0, 
-    #     noise_p=0.0, 
-    #     flip_p=0.5, 
-    #     distord_p=0.5,
-    #     )
-    # t1 = time.time()
-    # print(f"{t1 - t0:.3f}s")
+    # Preprocess
+    t0 = time.time()
+    print("preprocess :", end=" ", flush=True)
+    X_val, y_val = preprocess(
+        X_val, msks=y_val, img_norm="global", msk_type="edt", patch_size=patch_size)
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # Augment
+    t0 = time.time()
+    print("augment :", end=" ", flush=True)
+    X, y = augment(X, y, 5000,
+        gamma_p=0.0, gblur_p=0.0, noise_p=0.0, flip_p=0.5, distord_p=0.5)
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
     
     # # Display
     # viewer = napari.Viewer()
     # viewer.add_image(X, contrast_limits=[0, 1])
     # viewer.add_labels(y.astype("uint8")) 
     
-    # unet = UNet(
-    #     save_name="test",
-    #     load_name="",
-    #     root_path=Path.cwd(),
-    #     backbone="resnet18",
-    #     classes=1,
-    #     activation="sigmoid",
-    #     downscale_steps=1, 
-    #     )
+    unet = UNet(
+        save_name="test",
+        load_name="",
+        root_path=Path.cwd(),
+        backbone="resnet18",
+        classes=1,
+        activation="sigmoid",
+        downscale_steps=2, 
+        )
     
-    # unet.train(
-    #     X, y, 
-    #     X_val=None, y_val=None,
-    #     epochs=100,
-    #     batch_size=16,
-    #     validation_split=0.2,
-    #     metric="soft_dice_coef",
-    #     learning_rate=0.001,
-    #     patience=20,
-    #     )
+    unet.train(
+        X, y, 
+        # X_val=None, y_val=None,
+        X_val=X_val, y_val=y_val,
+        epochs=100,
+        batch_size=32,
+        validation_split=0.2,
+        metric="soft_dice_coef",
+        learning_rate=0.001,
+        patience=20,
+        )
     
     # Model (predict procedure) -----------------------------------------------
     
-    # Preprocess
-    t0 = time.time()
-    print("preprocess :", end=" ", flush=True)
-    X_val_prep, y_val_prep = preprocess(
-        X_val, msks=y_val, 
-        img_norm="global",
-        patch_size=patch_size,
-        patch_overlap=patch_size // 2,
-        )
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+    # # Preprocess
+    # t0 = time.time()
+    # print("preprocess :", end=" ", flush=True)
+    # X_val_prep, y_val_prep = preprocess(
+    #     X_val, msks=y_val, 
+    #     img_norm="global",
+    #     patch_size=patch_size,
+    #     patch_overlap=patch_size // 2,
+    #     )
+    # t1 = time.time()
+    # print(f"{t1 - t0:.3f}s")
     
-    unet = UNet(load_name="test")
-    prds = unet.predict(X_val_prep)
-    prds = merge_patches(prds, X_val.shape, patch_size // 2)
+    # unet = UNet(load_name="test")
+    # prds = unet.predict(X_val_prep)
+    # prds = merge_patches(prds, X_val.shape, patch_size // 2)
             
-    # Display
-    viewer = napari.Viewer()
-    viewer.add_image(X_val)
-    viewer.add_image(prds) 
+    # # Display
+    # viewer = napari.Viewer()
+    # viewer.add_image(X_val)
+    # viewer.add_image(prds) 
     

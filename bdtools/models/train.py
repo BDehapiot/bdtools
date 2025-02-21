@@ -24,47 +24,6 @@ import matplotlib.pyplot as plt
 
 #%% Comments ------------------------------------------------------------------
 
-'''
-- Procedure Train :
-    
-    - 1) create model
-    - 2) train model
-    - 3) save model + weights
-    
-    need : 
-        - save_name
-        - X, y
-        - new downscale_steps
-        - new build_params
-        - new train_params
-        
-
-- Procedure reTrain : 
-    
-    - 1) load model + weights
-    - 2) re-train model
-    
-    need : 
-        - load_name
-        - X, y
-        - **downscale_steps
-        - **build_params
-        - new train_params
-        
-    
-- Procedure Predict :
-    
-    - 1) load model + weights 
-    - 2) predict
-    
-    need : 
-        - load_name
-        - X
-        - **downscale_steps
-        - **build_params
-
-'''
-
 #%% UNet() --------------------------------------------------------------------
 
 class UNet:
