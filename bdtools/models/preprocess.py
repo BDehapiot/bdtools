@@ -14,7 +14,7 @@ from skimage.segmentation import find_boundaries
 #%% Comments ------------------------------------------------------------------
 
 '''
-- bug when images and masks are not of the same type
+- bug when changing rescaling_factor for get edt, need to be corrected
 '''
 
 #%% Function : preprocess() ---------------------------------------------------
