@@ -1,5 +1,6 @@
 #%% Imports -------------------------------------------------------------------
 
+import time
 import json
 import pickle
 import numpy as np
@@ -379,14 +380,14 @@ class CallBacks(Callback):
     def predict_examples(self, size=50):
                     
         # Predict
-        idxs = np.random.randint(0, unet.X_val.shape[0], size=size) 
-        prds = self.unet.predict(unet.X_val[idxs, ...].squeeze())
+        idxs = np.random.randint(0, self.unet.X_val.shape[0], size=size) 
+        prds = self.unet.predict(self.unet.X_val[idxs, ...].squeeze())
                 
         # Assemble predict_examples
         predict_examples = []
         for i, idx in enumerate(idxs):
-            img = unet.X_val[idx]
-            gtr = unet.y_val[idx]
+            img = self.unet.X_val[idx]
+            gtr = self.unet.y_val[idx]
             prd = prds[i].squeeze()
             acc = np.abs(gtr - prd)
             predict_examples.append(
@@ -399,102 +400,102 @@ class CallBacks(Callback):
         
         # Save
         io.imsave(
-            unet.model_path / "predict_examples.tif",
+            self.unet.model_path / "predict_examples.tif",
             predict_examples.astype("float32"), check_contrast=False
             )
     
 #%% Execute -------------------------------------------------------------------
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     
-    # Imports
-    import time
-    import napari
-    from skimage import io
-    from pathlib import Path
-    from bdtools.patch import merge_patches   
-    from bdtools.models import preprocess, augment
+#     # Imports
+#     import time
+#     import napari
+#     from skimage import io
+#     from pathlib import Path
+#     from bdtools.patch import merge_patches   
+#     from bdtools.models import preprocess, augment
 
-    # Parameters
-    dataset = "em_mito"
-    # dataset = "fluo_nuclei"
-    patch_size = 256
-    img_norm = "global"
-    msk_type = "edt"
+#     # Parameters
+#     dataset = "em_mito"
+#     # dataset = "fluo_nuclei"
+#     patch_size = 256
+#     img_norm = "global"
+#     msk_type = "edt"
     
-    # Paths
-    local_path = Path.cwd().parent.parent / "_local"
-    X_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
-    y_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
-    X_val_path = local_path / f"{dataset}" / f"{dataset}_val.tif"
-    y_val_path = local_path / f"{dataset}" / f"{dataset}_msk_val.tif"
+#     # Paths
+#     local_path = Path.cwd().parent.parent / "_local"
+#     X_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
+#     y_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
+#     X_val_path = local_path / f"{dataset}" / f"{dataset}_val.tif"
+#     y_val_path = local_path / f"{dataset}" / f"{dataset}_msk_val.tif"
     
-    # Load images & masks
-    X = io.imread(X_path)
-    y = io.imread(y_path)
-    X_val = io.imread(X_val_path)
-    y_val = io.imread(y_val_path)
+#     # Load images & masks
+#     X = io.imread(X_path)
+#     y = io.imread(y_path)
+#     X_val = io.imread(X_val_path)
+#     y_val = io.imread(y_val_path)
     
-    # Model (training procedure) ----------------------------------------------
+#     # Model (training procedure) ----------------------------------------------
     
-    # Preprocess
-    t0 = time.time()
-    print("preprocess :", end=" ", flush=True)
-    X, y = preprocess(
-        X, msks=y, 
-        img_norm=img_norm, 
-        msk_type=msk_type, 
-        patch_size=patch_size
-        )
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+#     # Preprocess
+#     t0 = time.time()
+#     print("preprocess :", end=" ", flush=True)
+#     X, y = preprocess(
+#         X, msks=y, 
+#         img_norm=img_norm, 
+#         msk_type=msk_type, 
+#         patch_size=patch_size
+#         )
+#     t1 = time.time()
+#     print(f"{t1 - t0:.3f}s")
     
-    # Preprocess
-    t0 = time.time()
-    print("preprocess :", end=" ", flush=True)
-    X_val, y_val = preprocess(
-        X_val, msks=y_val, 
-        img_norm=img_norm, 
-        msk_type=msk_type, 
-        patch_size=patch_size
-        )
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+#     # Preprocess
+#     t0 = time.time()
+#     print("preprocess :", end=" ", flush=True)
+#     X_val, y_val = preprocess(
+#         X_val, msks=y_val, 
+#         img_norm=img_norm, 
+#         msk_type=msk_type, 
+#         patch_size=patch_size
+#         )
+#     t1 = time.time()
+#     print(f"{t1 - t0:.3f}s")
     
-    # Augment
-    t0 = time.time()
-    print("augment :", end=" ", flush=True)
-    X, y = augment(X, y, 5000,
-        gamma_p=0.0, gblur_p=0.0, noise_p=0.0, flip_p=0.5, distord_p=0.5)
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+#     # Augment
+#     t0 = time.time()
+#     print("augment :", end=" ", flush=True)
+#     X, y = augment(X, y, 5000,
+#         gamma_p=0.0, gblur_p=0.0, noise_p=0.0, flip_p=0.5, distord_p=0.5)
+#     t1 = time.time()
+#     print(f"{t1 - t0:.3f}s")
     
     # # # Display
     # # viewer = napari.Viewer()
     # # viewer.add_image(X, contrast_limits=[0, 1])
     # # viewer.add_image(y) 
     
-    unet = UNet(
-        save_name=f"test_{dataset}",
-        load_name="",
-        root_path=Path.cwd(),
-        backbone="resnet18",
-        classes=1,
-        activation="sigmoid",
-        downscale_steps=1, 
-        )
+    # unet = UNet(
+    #     save_name=f"test_{dataset}",
+    #     load_name="",
+    #     root_path=Path.cwd(),
+    #     backbone="resnet18",
+    #     classes=1,
+    #     activation="sigmoid",
+    #     downscale_steps=1, 
+    #     )
     
-    unet.train(
-        X, y, 
-        # X_val=None, y_val=None,
-        X_val=X_val, y_val=y_val,
-        epochs=100,
-        batch_size=32,
-        validation_split=0.2,
-        metric="soft_dice_coef",
-        learning_rate=0.0005,
-        patience=20,
-        )
+    # unet.train(
+    #     X, y, 
+    #     # X_val=None, y_val=None,
+    #     X_val=X_val, y_val=y_val,
+    #     epochs=100,
+    #     batch_size=32,
+    #     validation_split=0.2,
+    #     metric="soft_dice_coef",
+    #     learning_rate=0.0005,
+    #     patience=20,
+    #     )
     
     # Model (predict procedure) -----------------------------------------------
     
