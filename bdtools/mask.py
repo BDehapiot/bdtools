@@ -140,4 +140,53 @@ def get_edt(
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__": 
+    
+    import napari
+    from skimage import io
+    from pathlib import Path
+    
+    train_path = Path.cwd().parent / "_local" / "fluo_plants"
+    rscale_paths = list(train_path.glob("*rscale*"))
+    
+    msks = []
+    for path in rscale_paths:
+        if "mask" in path.name:
+            msks.append(io.imread(path))
+    msks = np.stack(msks)
+    
+#%%
+
+    # Parameters
+    arr = msks
+    arr_backup = arr.copy()
+    rescale_factor = 1
+    # target = "foreground"
+    target = "background"
+    sampling = 1    
+    
+    ndim = arr.ndim
+
+    if rescale_factor < 1:
+        arr_copy = arr.copy()
+        if ndim == 2:
+            arr = rescale(arr, rescale_factor, order=0)
+        elif ndim == 3:
+            arr = rescale(arr, (1, rescale_factor, rescale_factor), order=0)
+            
+    if target == "foreground":
+        if ndim == 2:
+            arr[find_boundaries(arr, mode="inner") == 1] = 0
+        elif ndim == 3:
+            for ar in arr:
+                ar[find_boundaries(ar, mode="inner") == 1] = 0
+    else:
+        edt = distance_transform_edt(np.invert(arr > 0), sampling=sampling)
+
+    
+    # Display
+    viewer = napari.Viewer()
+    viewer.add_labels(arr)
+    viewer.add_labels(arr_backup)
+    viewer.add_image(edt)
+    
     pass
