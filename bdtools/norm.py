@@ -162,11 +162,13 @@ def norm_pct(
     if isinstance(arr, np.ndarray):
         np.clip(arr, pLow, pHigh, out=arr)
         arr -= pLow
-        arr /= (pHigh - pLow)
+        with np.errstate(invalid='ignore'):
+            arr /= (pHigh - pLow)
     elif isinstance(arr, list):
         for i in range(len(arr)):
            np.clip(arr[i], pLow, pHigh, out=arr[i]) 
            arr[i] -= pLow
-           arr[i] /= (pHigh - pLow)
+           with np.errstate(invalid='ignore'):
+               arr[i] /= (pHigh - pLow)
     
     return arr

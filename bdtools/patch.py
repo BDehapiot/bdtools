@@ -1,14 +1,15 @@
 #%% Imports -------------------------------------------------------------------
 
+import numba
 import numpy as np
-from numba import njit
+from joblib import Parallel, delayed
 
 # Scipy
 from scipy.ndimage import distance_transform_edt
 
 #%% Function: extract_patches() -----------------------------------------------
 
-def extract_patches(arr, size, overlap):
+def extract_patches(arr, size, patch_overlap):
     
     """ 
     Extract patches from 2D or 3D ndarray.    
@@ -25,8 +26,8 @@ def extract_patches(arr, size, overlap):
     size : int
         Size of extracted patches.
         
-    overlap : int
-        Overlap between patches (Must be between 0 and size - 1).
+    patch_overlap : int
+        patch_overlap between patches (Must be between 0 and size - 1).
                 
     Returns
     -------  
@@ -37,14 +38,14 @@ def extract_patches(arr, size, overlap):
     
     # Get dimensions
     if arr.ndim == 2: 
-        nT = 1
+        nS = 1
         nY, nX = arr.shape 
     if arr.ndim == 3: 
-        nT, nY, nX = arr.shape
+        nS, nY, nX = arr.shape
     
     # Get variables
-    y0s = np.arange(0, nY, size - overlap)
-    x0s = np.arange(0, nX, size - overlap)
+    y0s = np.arange(0, nY, size - patch_overlap)
+    x0s = np.arange(0, nX, size - patch_overlap)
     yMax = y0s[-1] + size
     xMax = x0s[-1] + size
     yPad = yMax - nY
@@ -67,54 +68,161 @@ def extract_patches(arr, size, overlap):
             for x0 in x0s:
                 patches.append(arr_pad[y0:y0 + size, x0:x0 + size])
     if arr.ndim == 3:
-        for t in range(nT):
+        for t in range(nS):
             for y0 in y0s:
                 for x0 in x0s:
                     patches.append(arr_pad[t, y0:y0 + size, x0:x0 + size])
             
     return patches
 
-#%% Function: merge_patches() -------------------------------------------------
+#%% Function : merge_patches() ------------------------------------------------
 
-@njit
-def merge_patches_2d_numba(patches, patch_edt, arr, edt, y0s, x0s, size):
+# def merge_patches(patches, shape, patch_overlap):
+    
+#     """
+#     Reassemble a 2D or 3D ndarray from extract_patches().
+
+#     The shape of the original array and the patch_overlap between patches used with
+#     extract_patches() must be provided to instruct the reassembly process.
+#     When merging patches with patch_overlap, priority is given to the central regions
+#     of the overlapping patches.
+
+#     Parameters
+#     ----------
+#     patches : list of ndarrays
+#         List containing extracted patches.
+
+#     shape : tuple of int
+#         Shape of the original ndarray.
+
+#     patch_overlap : int
+#         patch_overlap between patches (Must be between 0 and size - 1).
+
+#     Returns
+#     -------
+#     arr : 2D or 3D ndarray
+#         Reassembled array.
+    
+#     """
+
+#     # Nested function(s) ------------------------------------------------------
+    
+#     def get_patch_edt(patch_shape):
+#         edt = np.full(patch_shape, 1)
+#         edt[:, 0] = 0; edt[:, -1] = 0
+#         edt[0, :] = 0; edt[-1, :] = 0
+#         return distance_transform_edt(edt) + 1
+    
+#     def _merge_patches(patches):
+#         arr_sum = np.zeros((nY + yPad, nX + xPad), dtype=np.float64)
+#         weight_sum = np.zeros((nY + yPad, nX + xPad), dtype=np.float64)
+#         count = 0
+#         for i, y0 in enumerate(y0s):
+#             for j, x0 in enumerate(x0s):
+#                 patch = patches[count].astype(np.float64)
+#                 arr_sum[y0:y0+size, x0:x0+size] += patch * patch_edt
+#                 weight_sum[y0:y0+size, x0:x0+size] += patch_edt
+#                 count += 1
+#         arr = np.divide(
+#             arr_sum, weight_sum, 
+#             out=np.zeros_like(arr_sum),
+#             where=weight_sum != 0
+#             )
+#         arr = arr[yPad1:yPad1 + nY, xPad1:xPad1 + nX]
+#         return arr
+
+#     # Execute -----------------------------------------------------------------
+
+#     # Get size & dimensions
+#     size = patches[0].shape[0]
+#     if len(shape) == 2:
+#         nS = 1
+#         nY, nX = shape
+#     if len(shape) == 3:
+#         nS, nY, nX = shape
+#     nPatch = len(patches) // nS
+
+#     # Get variables
+#     patch_shape = patches[0].shape
+#     patch_edt = get_patch_edt(patch_shape).astype(np.float64)
+#     y0s = np.arange(0, nY, size - patch_overlap)
+#     x0s = np.arange(0, nX, size - patch_overlap)
+#     yMax = y0s[-1] + size
+#     xMax = x0s[-1] + size
+#     yPad = yMax - nY
+#     xPad = xMax - nX
+#     yPad1 = yPad // 2
+#     xPad1 = xPad // 2
+
+#     if len(shape) == 2:
+#         arr = _merge_patches(patches)
+
+#     if len(shape) == 3:
+#         patches = np.stack(patches).reshape(nS, nPatch, size, size)
+#         arr_list = []
+#         for t in range(nS):
+#             arr_t = _merge_patches(patches[t])
+#             arr_list.append(arr_t)
+#             arr = np.stack(arr_list)
+
+#     arr = arr.astype(patches[0].dtype)
+
+#     return arr
+
+#%% Function : merge_patches() ------------------------------------------------
+
+@numba.njit(parallel=True)
+def merge_2d_numba(
+        patches, patch_edt, size, nY, nX, y0s, x0s, yPad, xPad, yPad1, xPad1):
+    
+    out_h = nY + yPad
+    out_w = nX + xPad
+    arr_sum = np.zeros((out_h, out_w), dtype=np.float64)
+    weight_sum = np.zeros((out_h, out_w), dtype=np.float64)
     count = 0
-    ny0 = y0s.shape[0]
-    nx0 = x0s.shape[0]
-    for i0 in range(ny0):
-        y0 = y0s[i0]
-        for j0 in range(nx0):
-            x0 = x0s[j0]
-            for i in range(size):
-                for j in range(size):
-                    y_idx = y0 + i
-                    x_idx = x0 + j
-                    if patch_edt[i, j] > edt[y_idx, x_idx]:
-                        edt[y_idx, x_idx] = patch_edt[i, j]
-                        arr[y_idx, x_idx] = patches[count, i, j]
+    
+    for i in range(y0s.shape[0]):
+        for j in range(x0s.shape[0]):
+            patch = patches[count]
+            for di in range(size):
+                for dj in range(size):
+                    r = y0s[i] + di
+                    c = x0s[j] + dj
+                    arr_sum[r, c] += patch[di, dj] * patch_edt[di, dj]
+                    weight_sum[r, c] += patch_edt[di, dj]
             count += 1
 
-def merge_patches(patches, shape, overlap):
+    merged = np.empty((out_h, out_w), dtype=np.float64)
+    for i in range(out_h):
+        for j in range(out_w):
+            if weight_sum[i, j] != 0:
+                merged[i, j] = arr_sum[i, j] / weight_sum[i, j]
+            else:
+                merged[i, j] = 0.0
     
-    """ 
+    return merged[yPad1:yPad1+nY, xPad1:xPad1+nX]
+
+def merge_patches(patches, shape, patch_overlap):
+    
+    """
     Reassemble a 2D or 3D ndarray from extract_patches().
-    
-    The shape of the original array and the overlap between patches used with
-    extract_patches() must be provided to instruct the reassembly process. 
-    When merging patches with overlap, priority is given to the central regions
-    of the overlapping patches.
-    
+
+    The shape of the original array and the patch_overlap between patches 
+    used with extract_patches() must be provided to instruct the reassembly 
+    process. When merging patches with patch_overlap, priority is given to the 
+    central regions of the overlapping patches.
+
     Parameters
     ----------
     patches : list of ndarrays
         List containing extracted patches.
-        
+
     shape : tuple of int
         Shape of the original ndarray.
-        
-    overlap : int
-        Overlap between patches (Must be between 0 and size - 1).
-                
+
+    patch_overlap : int
+        patch_overlap between patches (Must be between 0 and size - 1).
+
     Returns
     -------
     arr : 2D or 3D ndarray
@@ -122,31 +230,28 @@ def merge_patches(patches, shape, overlap):
     
     """
     
-    def get_patch_edt(patch_shape):
-        edt_temp = np.ones(patch_shape, dtype=float)
-        edt_temp[ :,  0] = 0
-        edt_temp[ :, -1] = 0
-        edt_temp[ 0,  :] = 0
-        edt_temp[-1,  :] = 0
-        return distance_transform_edt(edt_temp) + 1
+    def get_patch_edt(size):
+        edt = np.ones((size, size), dtype=np.float64)
+        edt[[0, -1], :] = 0
+        edt[:, [0, -1]] = 0
+        return distance_transform_edt(edt) + 1
 
-    # Get size & dimensions 
+    # Get size & dimensions
     size = patches[0].shape[0]
     if len(shape) == 2:
-        nT = 1
+        nS = 1
         nY, nX = shape
     elif len(shape) == 3:
-        nT, nY, nX = shape
+        nS, nY, nX = shape
     else:
-        raise ValueError("shape must be 2D or 3D")
-    nPatch = len(patches) // nT
+        raise ValueError("Shape must be 2D or 3D")
 
-    # Get patch edt
-    patch_edt = get_patch_edt(patches[0].shape)
-    
     # Get variables
-    y0s = np.arange(0, nY, size - overlap)
-    x0s = np.arange(0, nX, size - overlap)
+    size = patches[0].shape[0]
+    step = size - patch_overlap
+    patch_edt = get_patch_edt(size)
+    y0s = np.arange(0, nY, step)
+    x0s = np.arange(0, nX, step)
     yMax = y0s[-1] + size
     xMax = x0s[-1] + size
     yPad = yMax - nY
@@ -154,36 +259,26 @@ def merge_patches(patches, shape, overlap):
     yPad1 = yPad // 2
     xPad1 = xPad // 2
 
-    # Initialize arrays
-    y0s_arr = np.array(y0s, dtype=np.int64)
-    x0s_arr = np.array(x0s, dtype=np.int64)
-
-    # Merge patches (2D)
-    if len(shape) == 2:
-        out_shape = (nY + yPad, nX + xPad)
-        arr_out = np.zeros(out_shape, dtype=patches[0].dtype)
-        edt_out = np.zeros(out_shape, dtype=patch_edt.dtype)
-        patches_array = np.stack(patches)
-        merge_patches_2d_numba(patches_array, patch_edt, arr_out, edt_out,
-                               y0s_arr, x0s_arr, size)
-        
-        return arr_out[yPad1:yPad1 + nY, xPad1:xPad1 + nX]
-
-    # Merge patches (3D)
-    elif len(shape) == 3:
-        patches_array = np.stack(patches).reshape(nT, nPatch, size, size)
+    if nS == 1:
+        patches_arr = np.array([p.astype(np.float64) for p in patches])
+        merged = merge_2d_numba(
+            patches_arr, patch_edt, size, nY, nX, 
+            y0s, x0s, yPad, xPad, yPad1, xPad1
+            )
+    else:
+        patches_arr = np.array([p.astype(np.float64) for p in patches])
+        patches_arr = patches_arr.reshape(nS, -1, size, size)
         merged_slices = []
-        for t in range(nT):
-            out_shape = (nY + yPad, nX + xPad)
-            arr_out = np.zeros(out_shape, dtype=patches_array.dtype)
-            edt_out = np.zeros(out_shape, dtype=patch_edt.dtype)
-            merge_patches_2d_numba(patches_array[t], patch_edt, arr_out, edt_out,
-                                   y0s_arr, x0s_arr, size)
-            merged_slice = arr_out[yPad1:yPad1 + nY, xPad1:xPad1 + nX]
+        for t in range(nS):
+            merged_slice = merge_2d_numba(
+                patches_arr[t], patch_edt, size, nY, nX, 
+                y0s, x0s, yPad, xPad, yPad1, xPad1
+                )
             merged_slices.append(merged_slice)
-        
-        return np.stack(merged_slices)
-    
+        merged = np.stack(merged_slices, axis=0)
+
+    return merged.astype(patches[0].dtype)
+
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -198,7 +293,7 @@ if __name__ == "__main__":
     dataset = "em_mito"
     # dataset = "fluo_nuclei"
     size = 256 # patch size
-    overlap = 128 # patch overlap 
+    patch_overlap = 128 # patch patch_overlap 
     
     # Paths
     local_path = Path.cwd().parent / "_local"
@@ -212,16 +307,17 @@ if __name__ == "__main__":
     # Patch tests
     print("extract patches : ", end=" ", flush=True)
     t0 = time.time()
-    patches = extract_patches(imgs, size, overlap)
+    patches = extract_patches(imgs, size, patch_overlap)
     t1 = time.time()
     print(f"({t1 - t0:.3f}s)")
         
     print("merge patches : ", end=" ", flush=True)
     t0 = time.time()
-    imgs_merged = merge_patches(patches, imgs.shape, overlap)
+    imgs_merged = merge_patches(patches, imgs.shape, patch_overlap)
     t1 = time.time()
     print(f"({t1 - t0:.3f}s)")
     
     # Display
     viewer = napari.Viewer()
-    viewer.add_image(np.stack(patches))
+    # viewer.add_image(np.stack(patches))
+    viewer.add_image(np.stack(imgs_merged))

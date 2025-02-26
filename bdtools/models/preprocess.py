@@ -10,6 +10,7 @@ from bdtools.patch import extract_patches
 
 # Skimage
 from skimage.segmentation import find_boundaries 
+from skimage.transform import downscale_local_mean
 
 #%% Comments ------------------------------------------------------------------
 
@@ -21,10 +22,10 @@ from skimage.segmentation import find_boundaries
 
 def preprocess(
         imgs, msks=None,
-        patch_size=256, 
-        patch_overlap=0,
         img_norm="global",
         msk_type="normal", 
+        patch_size=256, 
+        patch_overlap=0,
         ):
     
     """ 
@@ -58,7 +59,7 @@ def preprocess(
     patch_overlap : int, default=0
         Overlap between patches.
         Should be int, from 0 to patch_size - 1.
-        
+                
     Returns
     -------  
     imgs : 3D ndarray (float32)
@@ -97,17 +98,16 @@ def preprocess(
 
     # Nested function(s) ------------------------------------------------------
 
-    def normalize(arr, sample_fraction=0.1):
-        arr = norm_gcn(arr, sample_fraction=sample_fraction)
-        arr = norm_pct(arr, sample_fraction=sample_fraction)
-        return arr      
-            
+    def normalize(imgs, sample_fraction=0.1):
+        imgs = norm_gcn(imgs, sample_fraction=sample_fraction)
+        imgs = norm_pct(imgs, sample_fraction=sample_fraction)
+        return imgs      
+                
     def _preprocess(img, msk=None):
 
         if msk is None:
             
             img = np.array(img).squeeze()
-            
             img = extract_patches(img, patch_size, patch_overlap)
             
             return img
@@ -205,89 +205,44 @@ def preprocess(
 
 #%% Execute -------------------------------------------------------------------
 
-if __name__ == "__main__": 
+# if __name__ == "__main__": 
     
-    import time
-    import napari
-    from skimage import io
-    from pathlib import Path
-    
-    train_path = Path.cwd().parent.parent / "_local" / "fluo_plants"
-    rscale_paths = list(train_path.glob("*rscale*"))
-    
-    imgs, msks = [], []
-    for path in rscale_paths:
-        if "mask" in path.name:
-            msks.append(io.imread(path))
-        else:
-            imgs.append(io.imread(path))
-    imgs = np.stack(imgs)
-    msks = np.stack(msks)
-    
-    # Parameters
-    img_norm = "global"
-    msk_type = "edt"
-    patch_size = 128
-    patch_overlap = 0
-    
-    #
-    valid = []
-    for i, msk in enumerate(msks):
-        if np.max(msk) > 0:
-            valid.append(i)
-    imgs = imgs[valid]
-    msks = msks[valid]
-               
-    # Preprocess tests
-    print("preprocess : ", end="", flush=True)
-    t0 = time.time()
-    imgs_prp, msks_prp = preprocess(
-        imgs, msks, 
-        img_norm=img_norm,
-        msk_type=msk_type, 
-        patch_size=patch_size, 
-        patch_overlap=patch_overlap,
-        )
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
-    
-    # Display
-    viewer = napari.Viewer()
-    viewer.add_image(imgs_prp)
-    viewer.add_image(msks_prp) 
-
-#%% Execute -------------------------------------------------------------------
-
-# if __name__ == "__main__":
-        
-#     # Imports
 #     import time
 #     import napari
 #     from skimage import io
 #     from pathlib import Path
-
+    
+#     train_path = Path.cwd().parent.parent / "_local" / "fluo_plants"
+#     rscale_paths = list(train_path.glob("*rscale*"))
+    
+#     imgs, msks = [], []
+#     for path in rscale_paths:
+#         if "mask" in path.name:
+#             msks.append(io.imread(path))
+#         else:
+#             imgs.append(io.imread(path))
+#     imgs = np.stack(imgs)
+#     msks = np.stack(msks)
+    
 #     # Parameters
-#     # dataset = "em_mito"
-#     dataset = "fluo_nuclei"
 #     img_norm = "global"
 #     msk_type = "edt"
-#     patch_size = 256
+#     patch_size = 128
 #     patch_overlap = 0
     
-#     # Paths
-#     local_path = Path.cwd().parent.parent / "_local"
-#     X_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
-#     y_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
-    
-#     # Load images & masks
-#     X = io.imread(X_path)
-#     y = io.imread(y_path)
-    
+#     #
+#     valid = []
+#     for i, msk in enumerate(msks):
+#         if np.max(msk) > 0:
+#             valid.append(i)
+#     imgs = imgs[valid]
+#     msks = msks[valid]
+               
 #     # Preprocess tests
 #     print("preprocess : ", end="", flush=True)
 #     t0 = time.time()
-#     X_prp, y_prp = preprocess(
-#         X, y, 
+#     imgs_prp, msks_prp = preprocess(
+#         imgs, msks, 
 #         img_norm=img_norm,
 #         msk_type=msk_type, 
 #         patch_size=patch_size, 
@@ -298,7 +253,52 @@ if __name__ == "__main__":
     
 #     # Display
 #     viewer = napari.Viewer()
-#     viewer.add_image(X_prp)
-#     viewer.add_image(y_prp) 
+#     viewer.add_image(imgs_prp)
+#     viewer.add_image(msks_prp) 
+
+#%% Execute -------------------------------------------------------------------
+
+if __name__ == "__main__":
+        
+    # Imports
+    import time
+    import napari
+    from skimage import io
+    from pathlib import Path
+
+    # Parameters
+    # dataset = "em_mito"
+    dataset = "fluo_nuclei"
+    img_norm = "global"
+    msk_type = "edt"
+    patch_size = 256
+    patch_overlap = 0
+    
+    # Paths
+    local_path = Path.cwd().parent.parent / "_local"
+    X_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
+    y_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
+    
+    # Load images & masks
+    X = io.imread(X_path)
+    y = io.imread(y_path)
+    
+    # Preprocess tests
+    print("preprocess : ", end="", flush=True)
+    t0 = time.time()
+    X_prp, y_prp = preprocess(
+        X, y, 
+        img_norm=img_norm,
+        msk_type=msk_type, 
+        patch_size=patch_size, 
+        patch_overlap=patch_overlap,
+        )
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # Display
+    viewer = napari.Viewer()
+    viewer.add_image(X_prp)
+    viewer.add_image(y_prp) 
     
     
