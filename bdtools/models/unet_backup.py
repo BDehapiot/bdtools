@@ -178,33 +178,22 @@ class UNet:
             self.X_trn, self.y_trn = X, y
             self.X_val, self.y_val = X_val, y_val
 
-        # Downscale data
-        if self.downscaling_steps > 0:
-            t0 = time.time()
-            print("train - downscale data : ", end="", flush=True)
-            self.X_trn_prp, self.y_trn_prp = downscale(
-                self.X_trn, y=self.y_trn, steps=downscaling_steps)
-            self.X_val_prp, self.y_val_prp = downscale(
-                self.X_val, y=self.y_val, steps=downscaling_steps)
-            t1 = time.time()
-            print(f"{t1 - t0:.3f}s")
-
         # Preprocess data
         t0 = time.time()
         print("train - preprocess data : ", end="", flush=True)
         self.X_trn_prp, self.y_trn_prp = preprocess(
-            self.X_trn_prp, msks=self.y_trn_prp, 
+            self.X_trn, msks=self.y_trn, 
             img_norm=self.img_norm, 
             msk_type=self.msk_type, 
-            patch_size=self.patch_size // self.downscaling_steps,
-            patch_overlap=self.patch_overlap // self.downscaling_steps,
+            patch_size=self.patch_size,
+            patch_overlap=self.patch_overlap,
             )
         self.X_val_prp, self.y_val_prp = preprocess(
-            self.X_val_prp, msks=self.y_val_prp, 
+            self.X_val, msks=self.y_val, 
             img_norm=self.img_norm, 
             msk_type=self.msk_type, 
-            patch_size=self.patch_size // self.downscaling_steps,
-            patch_overlap=self.patch_overlap // self.downscaling_steps,
+            patch_size=self.patch_size,
+            patch_overlap=self.patch_overlap,
             )
         t1 = time.time()
         print(f"{t1 - t0:.3f}s")
@@ -225,16 +214,16 @@ class UNet:
             t1 = time.time()
             print(f"{t1 - t0:.3f}s")
         
-        # # Downscale data
-        # if self.downscaling_steps > 0:
-        #     t0 = time.time()
-        #     print("train - downscale data : ", end="", flush=True)
-        #     self.X_trn_prp, self.y_trn_prp = downscale(
-        #         self.X_trn_prp, y=self.y_trn_prp, steps=downscaling_steps)
-        #     self.X_val_prp, self.y_val_prp = downscale(
-        #         self.X_val_prp, y=self.y_val_prp, steps=downscaling_steps)
-        #     t1 = time.time()
-        #     print(f"{t1 - t0:.3f}s")
+        # Downscale data
+        if self.downscaling_steps > 0:
+            t0 = time.time()
+            print("train - downscale data : ", end="", flush=True)
+            self.X_trn_prp, self.y_trn_prp = downscale(
+                self.X_trn_prp, y=self.y_trn_prp, steps=downscaling_steps)
+            self.X_val_prp, self.y_val_prp = downscale(
+                self.X_val_prp, y=self.y_val_prp, steps=downscaling_steps)
+            t1 = time.time()
+            print(f"{t1 - t0:.3f}s")
             
         # Paths
         if self.save_name: 
@@ -582,6 +571,9 @@ if __name__ == "__main__":
     # Parameters
     dataset = "em_mito"
     # dataset = "fluo_nuclei"
+    patch_size = 256
+    img_norm = "global"
+    msk_type = "edt"
     
     # Paths
     local_path = Path.cwd().parent.parent / "_local"
@@ -595,16 +587,6 @@ if __name__ == "__main__":
     y = io.imread(y_path)
     X_val = io.imread(X_val_path)
     y_val = io.imread(y_val_path)
-    
-    # Preprocessing -----------------------------------------------------------
-    
-    downscaling_steps = 2
-    
-    t0 = time.time()
-    print("downscale : ", end="", flush=True)
-    X_prp, y_prp = downscale(X, y=y, steps=downscaling_steps)
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
     
     # Model (training procedure) ----------------------------------------------
     
@@ -625,7 +607,7 @@ if __name__ == "__main__":
         
     #     # Preprocess
     #     img_norm="global", 
-    #     msk_type="edt", 
+    #     msk_type="normal", 
     #     patch_size=512,
     #     patch_overlap=0,
     #     downscaling_steps=2, 
@@ -650,13 +632,13 @@ if __name__ == "__main__":
     
     # Model (predict procedure) -----------------------------------------------
     
-    # unet = UNet(
-    #     load_name="512_normal_5000-660_2",
-    #     )
-    # prds = unet.predict(X_val)
+    unet = UNet(
+        load_name="512_normal_5000-660_2",
+        )
+    prds = unet.predict(X_val)
     
-    # # Display
-    # viewer = napari.Viewer()
-    # viewer.add_image(X_val)
-    # viewer.add_image(prds) 
+    # Display
+    viewer = napari.Viewer()
+    viewer.add_image(X_val)
+    viewer.add_image(prds) 
     
