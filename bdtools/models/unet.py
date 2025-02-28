@@ -3,6 +3,7 @@
 import sys
 import time
 import json
+import napari
 import pickle
 import numpy as np
 from skimage import io
@@ -577,11 +578,7 @@ class CallBacks(Callback):
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
-    
-    # Imports
-    import napari
-    from pathlib import Path
- 
+     
     # Parameters
     dataset = "em_mito"
     # dataset = "fluo_nuclei"
@@ -635,7 +632,7 @@ if __name__ == "__main__":
         X_trn, y_trn, 
         X_val=None, y_val=None,
         # X_val=X_val, y_val=y_val,
-        preview=False,
+        preview=True,
         
         # Preprocess
         img_norm="global", 
