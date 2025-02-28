@@ -175,7 +175,7 @@ class UNet:
         # Split data
         if X_val is None:
             self.X_trn, self.y_trn, self.X_val, self.y_val = split(
-                self.X, self.y, split=validation_split)
+                X, y, split=validation_split)
         else:
             self.X_trn, self.y_trn = X, y
             self.X_val, self.y_val = X_val, y_val
@@ -583,8 +583,8 @@ if __name__ == "__main__":
     from pathlib import Path
  
     # Parameters
-    # dataset = "em_mito"
-    dataset = "fluo_nuclei"
+    dataset = "em_mito"
+    # dataset = "fluo_nuclei"
     # dataset = "sat_buildings"
     
     # Paths
@@ -621,56 +621,56 @@ if __name__ == "__main__":
         
     # Model (training procedure) ----------------------------------------------
     
-    # unet = UNet(
-    #     save_name="",
-    #     load_name="",
-    #     root_path=Path.cwd(),
-    #     backbone="resnet18",
-    #     classes=1,
-    #     activation="sigmoid",
-    #     )
+    unet = UNet(
+        save_name="",
+        load_name="",
+        root_path=Path.cwd(),
+        backbone="resnet18",
+        classes=1,
+        activation="sigmoid",
+        )
     
-    # unet.train(
+    unet.train(
         
-    #     X_trn, y_trn, 
-    #     # X_val=None, y_val=None,
-    #     X_val=X_val, y_val=y_val,
-    #     preview=False,
+        X_trn, y_trn, 
+        X_val=None, y_val=None,
+        # X_val=X_val, y_val=y_val,
+        preview=False,
         
-    #     # Preprocess
-    #     img_norm="global", 
-    #     msk_type="edt", 
-    #     patch_size=256,
-    #     patch_overlap=0,
-    #     downscaling_factor=2, 
+        # Preprocess
+        img_norm="global", 
+        msk_type="edt", 
+        patch_size=256,
+        patch_overlap=0,
+        downscaling_factor=2, 
         
-    #     # Augment
-    #     iterations=2000,
-    #     gamma_p=0.5, 
-    #     gblur_p=0, 
-    #     noise_p=0, 
-    #     flip_p=0.5, 
-    #     distord_p=0.5,
+        # Augment
+        iterations=2000,
+        gamma_p=0.5, 
+        gblur_p=0, 
+        noise_p=0, 
+        flip_p=0.5, 
+        distord_p=0.5,
         
-    #     # Train
-    #     epochs=100,
-    #     batch_size=8,
-    #     validation_split=0.2,
-    #     metric="soft_dice_coef",
-    #     learning_rate=0.0005,
-    #     patience=20,
+        # Train
+        epochs=100,
+        batch_size=8,
+        validation_split=0.2,
+        metric="soft_dice_coef",
+        learning_rate=0.0005,
+        patience=20,
         
-    #     )
+        )
     
     # Model (predict procedure) -----------------------------------------------
     
-    unet = UNet(
-        load_name="model_256_edt_2000-900_2",
-        )
-    prds = unet.predict(X_val)
+    # unet = UNet(
+    #     load_name="model_256_edt_2000-900_2",
+    #     )
+    # prds = unet.predict(X_val)
     
-    # Display
-    viewer = napari.Viewer()
-    viewer.add_image(X_val)
-    viewer.add_image(prds) 
+    # # Display
+    # viewer = napari.Viewer()
+    # viewer.add_image(X_val)
+    # viewer.add_image(prds) 
     
