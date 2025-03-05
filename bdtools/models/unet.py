@@ -372,8 +372,12 @@ class UNet:
         log(f"{t1 - t0:.3f}s")
     
         # Predict
+        t0 = time.time()
+        log("predict - predict : ", end="")
         prds = self.model.predict(X_prp, verbose=verbose).squeeze()
-            
+        t1 = time.time()
+        log(f"{t1 - t0:.3f}s")    
+        
         # Merge patches
         t0 = time.time()
         log("predict - merge data : ", end="")
@@ -716,10 +720,10 @@ if __name__ == "__main__":
     
     # Model (predict procedure) -----------------------------------------------
     
-    # unet = UNet(
-    #     load_name="model_256_edt_2000-1584_2",
-    #     )
-    # prds = unet.predict(X_val)
+    unet = UNet(
+        load_name="model_256_edt_2000-1584_2",
+        )
+    prds = unet.predict(X_val, verbose=3)
     
     # # Display
     # viewer = napari.Viewer()
