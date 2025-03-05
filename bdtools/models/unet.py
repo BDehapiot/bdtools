@@ -336,56 +336,111 @@ class UNet:
         
 #%% Predict -------------------------------------------------------------------
 
-    def predict(self, X):
-        
-        # Fetch
+    def predict(self, X, verbose=True):
+
+        def log(message, end="\n"):
+            if verbose > 2:
+                print(message, end=end, flush=True)
+    
+        # Fetch parameters
         patch_size = self.preprocess_params["patch_size"]
         downscaling_factor = self.preprocess_params["downscaling_factor"]
-        
+    
         # Adjust variables
         patch_size = closest_32(patch_size // downscaling_factor)
-        
+    
         # Downscale
         if downscaling_factor > 1:
             t0 = time.time()
-            print("predict - downscale data : ", end="", flush=True)
+            log("predict - downscale data : ", end="")
             shape = X.shape
             X = downscale(X, df=downscaling_factor)
             shape_dsc = X.shape
             t1 = time.time()
-            print(f"{t1 - t0:.3f}s")
+            log(f"{t1 - t0:.3f}s")
         
         # Preprocess
         t0 = time.time()
-        print("predict - preprocess data : ", end="", flush=True)
+        log("predict - preprocess data : ", end="")
         X_prp = preprocess(
             X, msks=None, 
             img_norm=self.preprocess_params["img_norm"], 
             patch_size=patch_size,
             patch_overlap=patch_size // 2,
-            )
+        )
         t1 = time.time()
-        print(f"{t1 - t0:.3f}s")
-
+        log(f"{t1 - t0:.3f}s")
+    
         # Predict
-        prds = self.model.predict(X_prp).squeeze()
+        prds = self.model.predict(X_prp, verbose=verbose).squeeze()
             
         # Merge patches
         t0 = time.time()
-        print("predict - merge data : ", end="", flush=True)
+        log("predict - merge data : ", end="")
         prds = merge_patches(prds, shape_dsc, patch_size // 2)
         t1 = time.time()
-        print(f"{t1 - t0:.3f}s")
+        log(f"{t1 - t0:.3f}s")
         
         # Upscale
         t0 = time.time()
-        print("predict - upscale data : ", end="", flush=True)
+        log("predict - upscale data : ", end="")
         if downscaling_factor > 1:
             prds = upscale(prds, shape)
         t1 = time.time()
-        print(f"{t1 - t0:.3f}s")
-
+        log(f"{t1 - t0:.3f}s")
+    
         return prds
+
+    # def predict(self, X):
+        
+    #     # Fetch
+    #     patch_size = self.preprocess_params["patch_size"]
+    #     downscaling_factor = self.preprocess_params["downscaling_factor"]
+        
+    #     # Adjust variables
+    #     patch_size = closest_32(patch_size // downscaling_factor)
+        
+    #     # Downscale
+    #     if downscaling_factor > 1:
+    #         t0 = time.time()
+    #         print("predict - downscale data : ", end="", flush=True)
+    #         shape = X.shape
+    #         X = downscale(X, df=downscaling_factor)
+    #         shape_dsc = X.shape
+    #         t1 = time.time()
+    #         print(f"{t1 - t0:.3f}s")
+        
+    #     # Preprocess
+    #     t0 = time.time()
+    #     print("predict - preprocess data : ", end="", flush=True)
+    #     X_prp = preprocess(
+    #         X, msks=None, 
+    #         img_norm=self.preprocess_params["img_norm"], 
+    #         patch_size=patch_size,
+    #         patch_overlap=patch_size // 2,
+    #         )
+    #     t1 = time.time()
+    #     print(f"{t1 - t0:.3f}s")
+
+    #     # Predict
+    #     prds = self.model.predict(X_prp).squeeze()
+            
+    #     # Merge patches
+    #     t0 = time.time()
+    #     print("predict - merge data : ", end="", flush=True)
+    #     prds = merge_patches(prds, shape_dsc, patch_size // 2)
+    #     t1 = time.time()
+    #     print(f"{t1 - t0:.3f}s")
+        
+    #     # Upscale
+    #     t0 = time.time()
+    #     print("predict - upscale data : ", end="", flush=True)
+    #     if downscaling_factor > 1:
+    #         prds = upscale(prds, shape)
+    #     t1 = time.time()
+    #     print(f"{t1 - t0:.3f}s")
+
+    #     return prds
 
 #%% Callbacks -----------------------------------------------------------------
 
@@ -618,51 +673,51 @@ if __name__ == "__main__":
         
     # Model (training procedure) ----------------------------------------------
     
-    unet = UNet(
-        save_name="",
-        load_name="",
-        root_path=Path.cwd(),
-        backbone="resnet18",
-        classes=1,
-        activation="sigmoid",
-        )
+    # unet = UNet(
+    #     save_name="",
+    #     load_name="",
+    #     root_path=Path.cwd(),
+    #     backbone="resnet18",
+    #     classes=1,
+    #     activation="sigmoid",
+    #     )
     
-    unet.train(
+    # unet.train(
         
-        X_trn, y_trn, 
-        X_val=None, y_val=None,
-        # X_val=X_val, y_val=y_val,
-        preview=True,
+    #     X_trn, y_trn, 
+    #     X_val=None, y_val=None,
+    #     # X_val=X_val, y_val=y_val,
+    #     preview=False,
         
-        # Preprocess
-        img_norm="global", 
-        msk_type="edt", 
-        patch_size=256,
-        patch_overlap=0,
-        downscaling_factor=2, 
+    #     # Preprocess
+    #     img_norm="global", 
+    #     msk_type="edt", 
+    #     patch_size=256,
+    #     patch_overlap=0,
+    #     downscaling_factor=2, 
         
-        # Augment
-        iterations=2000,
-        gamma_p=0.5, 
-        gblur_p=0, 
-        noise_p=0, 
-        flip_p=0.5, 
-        distord_p=0.5,
+    #     # Augment
+    #     iterations=2000,
+    #     gamma_p=0.5, 
+    #     gblur_p=0, 
+    #     noise_p=0, 
+    #     flip_p=0.5, 
+    #     distord_p=0.5,
         
-        # Train
-        epochs=100,
-        batch_size=8,
-        validation_split=0.2,
-        metric="soft_dice_coef",
-        learning_rate=0.0005,
-        patience=20,
+    #     # Train
+    #     epochs=100,
+    #     batch_size=8,
+    #     validation_split=0.2,
+    #     metric="soft_dice_coef",
+    #     learning_rate=0.0005,
+    #     patience=20,
         
-        )
+    #     )
     
     # Model (predict procedure) -----------------------------------------------
     
     # unet = UNet(
-    #     load_name="model_256_edt_2000-900_2",
+    #     load_name="model_256_edt_2000-1584_2",
     #     )
     # prds = unet.predict(X_val)
     
