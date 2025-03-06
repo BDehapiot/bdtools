@@ -350,14 +350,14 @@ class UNet:
         patch_size = closest_32(patch_size // downscaling_factor)
     
         # Downscale
+        shape0 = X.shape
         if downscaling_factor > 1:
             t0 = time.time()
             log("predict - downscale data : ", end="")
-            shape = X.shape
             X = downscale(X, df=downscaling_factor)
-            shape_dsc = X.shape
             t1 = time.time()
             log(f"{t1 - t0:.3f}s")
+        shape1 = X.shape
         
         # Preprocess
         t0 = time.time()
@@ -381,7 +381,7 @@ class UNet:
         # Merge patches
         t0 = time.time()
         log("predict - merge data : ", end="")
-        prds = merge_patches(prds, shape_dsc, patch_size // 2)
+        prds = merge_patches(prds, shape1, patch_size // 2)
         t1 = time.time()
         log(f"{t1 - t0:.3f}s")
         
@@ -389,7 +389,7 @@ class UNet:
         t0 = time.time()
         log("predict - upscale data : ", end="")
         if downscaling_factor > 1:
-            prds = upscale(prds, shape)
+            prds = upscale(prds, shape0)
         t1 = time.time()
         log(f"{t1 - t0:.3f}s")
     
