@@ -669,7 +669,7 @@ if __name__ == "__main__":
         y_trn = resize(y_trn, (y_trn.shape[0], 320, 320), order=0)
         X_val = resize(X_val, (X_val.shape[0], 320, 320), order=0)
         y_val = resize(y_val, (y_val.shape[0], 320, 320), order=0)
-        
+
         # # Display
         # viewer = napari.Viewer()
         # viewer.add_image(X_trn)
@@ -720,10 +720,10 @@ if __name__ == "__main__":
     
     # Model (predict procedure) -----------------------------------------------
     
-    unet = UNet(
-        load_name="model_256_edt_2000-1584_2",
-        )
-    prds = unet.predict(X_val, verbose=3)
+    # unet = UNet(
+    #     load_name="model_256_edt_2000-1584_2",
+    #     )
+    # prds = unet.predict(X_val, verbose=3)
     
     # # Display
     # viewer = napari.Viewer()
