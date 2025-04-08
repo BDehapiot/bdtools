@@ -26,7 +26,7 @@ from matplotlib.gridspec import GridSpec
 
 # Feature detection
 feat_params={
-    "maxCorners"        : 1000,
+    "maxCorners"        : 10000,
     "qualityLevel"      : 1e-4,
     "minDistance"       : 3,
     "blockSize"         : 3,
@@ -114,10 +114,10 @@ class KLT:
                 }, 
             
             flow_params={
-                "winSize"         : (9, 9),
-                "maxLevel"        : 3,
-                "criteria"        : (5, 0.01),
-                "minEigThreshold" : 1e-4,
+                "winSize"           : (9, 9),
+                "maxLevel"          : 3,
+                "criteria"          : (5, 0.01),
+                "minEigThreshold"   : 1e-4,
                 },
             
             ):
@@ -157,62 +157,60 @@ class KLT:
 
     def preprocess(self):
         
-        # Convert to uint8
         if self.arr.dtype != "uint8":
             self.arr = norm_pct(self.arr, sample_fraction=0.01)
             self.arr = (self.arr * 255).astype("uint8") 
-        if self.msk.dtype != "uint8":
+        if self.msk is None:
+            self.msk = np.full_like(self.arr, 255, dtype="uint8") 
+        else:
             self.msk = norm_pct(self.msk, sample_fraction=0.01)
             self.msk = (self.msk * 255).astype("uint8")
-            
-        # Format mask
-        if self.msk is None:
-            self.msk = np.full_like(self.arr, 255, dtype="uint8")
-        elif self.msk.ndim == 2:
+        if self.msk.ndim == 2:
             self.msk = np.stack([self.msk] * self.nT, axis=0)
         
 #%% Method : process() --------------------------------------------------------
         
     def process(self):
         
-        self.n      = []
         self.y      = []
         self.x      = []
-        self.dy     = []
-        self.dx     = []
-        self.norm   = []
         self.status = []
-        self.error  = []
+        self.error  = []       
         
         # Nested functions ----------------------------------------------------
         
         def invalid_features(f, msk):
             x, y = f[:, 0], f[:, 1]
             out_frm = (x <= 0) | (x >= self.nX) | (y <= 0) | (y >= self.nY)
+            f[out_frm] = np.nan
             valid = ~np.isnan(x) & ~np.isnan(y)
             out_msk = np.zeros_like(x, dtype=bool)
             out_msk[valid] = (
                 msk[y[valid].astype(int), x[valid].astype(int)] == 0)
             return out_frm | out_msk
+                
+        def format_data(data, status):
         
-        def format_outputs(data, status):
-            
             def sort_outputs(data):
                 start = np.argmax(~np.isnan(data), axis=0)
                 length = np.sum(~np.isnan(data), axis=0)
                 sort_idx = np.lexsort((length, start))
                 return data[:, sort_idx]
-            
+        
             fmt_data = []
             for c, col in enumerate(status.T):
-                idxs = np.where(col == 0)[0]
-                ends = np.append(idxs[1:], len(col))
-                for start, end in zip(idxs, ends):
+                idxs = np.where(col == 2)[0]
+                for i, start in enumerate(idxs):
                     tmp_data = np.full_like(col, np.nan, dtype=float)
+                    if len(idxs) == 1:
+                        end = np.nonzero(col)[0][-1] + 1
+                    elif i + 1 < len(idxs):
+                        end = idxs[i + 1]
+                    else:
+                        end = len(col)
                     tmp_data[start:end] = data[start:end, c]
                     fmt_data.append(tmp_data)
-            fmt_data = sort_outputs(np.stack(fmt_data).T)
-            return fmt_data
+            return sort_outputs(np.stack(fmt_data).T)
 
         # Execute -------------------------------------------------------------
         
@@ -230,8 +228,6 @@ class KLT:
             f1, status, error = cv2.calcOpticalFlowPyrLK(
                 img0, img1, f0, None, **self.flow_params
                 )
-            
-            # Format data #1
             status, error, f0, f1 = [
                 data.squeeze() for data in (status, error, f0, f1)]
 
@@ -239,7 +235,7 @@ class KLT:
             idx = invalid_features(f1, self.msk[t, ...])
             status[idx] = 0
             f1[status == 0] = np.nan
-            
+
             # Replace lost features *******************************************
             
             if self.replace:
@@ -261,18 +257,16 @@ class KLT:
                     new_feats = new_feats.squeeze()
                     
                     f1[lost_idx] = new_feats
-                    status[lost_idx] = 0
+                    status[lost_idx] = 2
                                                   
             # *****************************************************************
             
             # Append data
             if t == 1:
-                self.n.append(np.nansum(f0[:, 1] > 0))
-                self.status.append(np.full_like(status, 0))
+                self.status.append(np.full_like(status, 2))
                 self.error.append(error)
                 self.x.append(f0[:, 0])
                 self.y.append(f0[:, 1])
-            self.n.append(np.nansum(f1[:, 1] > 0))  
             self.status.append(status)
             self.error.append(error)
             self.x.append(f1[:, 0])
@@ -282,16 +276,16 @@ class KLT:
             img0 = img1
             f0 = f1.reshape(-1, 1, 2)
             
-        # Format data #2
+        # Format data
         self.status, self.error, self.x, self.y = [
             np.stack(data) for data in (self.status, self.error, self.x, self.y)]
-        self.x = format_outputs(self.x, self.status)
-        self.y = format_outputs(self.y, self.status)
-        self.error = format_outputs(self.error, self.status)
-        self.status = format_outputs(self.status, self.status)
+        self.x = format_data(self.x, self.status)
+        self.y = format_data(self.y, self.status)
+        self.error = format_data(self.error, self.status)
+        self.status = format_data(self.status, self.status)
         
         # Remove 
-        idx = np.where(np.nansum(self.status, axis=0) > 0) 
+        idx = np.where(np.nansum(self.status, axis=0) > 2) 
         self.x = self.x[:, idx[0]]
         self.y = self.y[:, idx[0]]
         self.error = self.error[:, idx[0]]
@@ -301,17 +295,34 @@ class KLT:
 
     def get_stats(self):
         
-        self.dx = np.diff(self.x, axis=0)
-        self.dy = np.diff(self.y, axis=0)
-        self.dx = np.vstack((np.full((1, self.dx.shape[1]), np.nan), self.dx))
-        self.dy = np.vstack((np.full((1, self.dy.shape[1]), np.nan), self.dy))
+        def get_diff(data):
+            diff = np.diff(data, axis=0)
+            diff = np.vstack((np.full((1, data.shape[1]), np.nan), diff))
+            return diff
+        
+        #
+        self.n = np.sum(~np.isnan(self.status), axis=1)
+        self.lost = np.sum(self.status == 2, axis=1)
+        self.lost_cum = np.nancumsum(self.lost[1:], axis=0) 
+        
+        #
+        self.dx = get_diff(self.x)
+        self.dy = get_diff(self.y)
         self.norm = np.hypot(self.dx, self.dy)
+        
+        #
+        self.dx_avg = np.nanmean(self.dx, axis=1)
+        self.dy_avg = np.nanmean(self.dy, axis=1)
+        self.norm_avg = np.nanmean(self.norm, axis=1)
+        self.error_avg = np.nanmean(self.error, axis=1)
+        self.dx_avg_cum = np.nancumsum(self.dx_avg, axis=0) 
+        self.dy_avg_cum = np.nancumsum(self.dy_avg, axis=0) 
             
 #%% Method : get_maps() -------------------------------------------------------
 
     def get_maps(self):
         
-        self.coords_map = np.zeros(self.shape, dtype=bool)
+        self.coords_map = np.zeros(self.shape, dtype="uint8")
         self.labels_map = np.zeros(self.shape, dtype="uint16")
         self.speeds_map = np.zeros(self.shape, dtype=float)
         self.tracks_map = np.zeros(self.shape, dtype=bool)
@@ -321,6 +332,7 @@ class KLT:
             # Extract data  
             y1s = self.y[t, :]
             x1s = self.x[t, :]
+            status = self.status[t, :]
             labels = np.arange(y1s.shape[0]) + 1
             speeds = self.norm[t]
 
@@ -328,22 +340,135 @@ class KLT:
             valid_idx = ~np.isnan(y1s)
             y1s = y1s[valid_idx].astype(int)
             x1s = x1s[valid_idx].astype(int)
+            status = status[valid_idx]
             labels = labels[valid_idx]
             speeds = speeds[valid_idx]
             
             # Fill maps
-            self.coords_map[t, y1s, x1s] = True
+            self.coords_map[t, y1s, x1s] = status
             self.labels_map[t, y1s, x1s] = labels
             self.speeds_map[t, y1s, x1s] = speeds
             if t > 0:
                 y0s = self.y[t - 1, :]
                 x0s = self.x[t - 1, :]
-                # valid_idx = ~np.isnan(y0s)
-                y0s = y0s[valid_idx].astype(int)
-                x0s = x0s[valid_idx].astype(int)
+                y0s = y0s[valid_idx]
+                x0s = x0s[valid_idx]
                 for x0, y0, x1, y1 in zip(x0s, y0s, x1s, y1s):
-                    rr, cc = line(y0, x0, y1, x1)
-                    self.tracks_map[t,rr,cc] = True
+                    if ~np.isnan(x0):
+                        x0, y0 = int(x0), int(y0)
+                        rr, cc = line(y0, x0, y1, x1)
+                        self.tracks_map[t,rr,cc] = True
+
+#%% Method : plot() -----------------------------------------------------------
+
+    def plot(self):
+        
+        # rcParams
+           
+        mpl.rcParams.update({
+        
+        # Font
+        "font.family"        : "Consolas",
+        "axes.titlesize"     : 8,
+        "axes.labelsize"     : 6,
+        "xtick.labelsize"    : 5,
+        "ytick.labelsize"    : 5,
+        "legend.fontsize"    : 5,
+    
+        # Padding
+        "axes.titlepad"      : 4,  
+        "axes.labelpad"      : 2,  
+        "xtick.major.pad"    : 2,  
+        "ytick.major.pad"    : 2,          
+        
+        # Linewidth
+        "axes.linewidth"     : 0.5,
+        "xtick.major.width"  : 0.5, 
+        "ytick.major.width"  : 0.5, 
+        "xtick.major.size"   : 2,
+        "ytick.major.size"   : 2,
+        
+        # Saving
+        "savefig.dpi"         : 300,
+        "savefig.transparent" : False,
+        
+        })
+        
+        # Initialize
+        self.get_stats()
+        nmax = self.feat_params["maxCorners"]
+        
+        # Create figure
+    
+        fig = plt.figure(figsize=(4, 4), layout="tight")
+        gs = GridSpec(3, 3, figure=fig)
+                
+        # Track count ---------------------------------------------------------
+    
+        # Plot
+        ax_cnt = fig.add_subplot(gs[0, 0]) 
+        ax_cnt.plot(self.n, linewidth=0.5)
+        ax_cnt.plot(self.lost_cum, linewidth=0.5)
+        ax_cnt.axhline(y=nmax, linewidth=0.5, linestyle="--", color="k") 
+    
+        # Format
+        ax_cnt.set_title("Track count/lost")
+        ax_cnt.set_ylim(0, nmax * 1.1)
+        ax_cnt.set_ylabel("Count")
+        ax_cnt.set_xlabel("Timepoint")
+        
+        # Average eigenvalue --------------------------------------------------
+    
+        # Plot
+        ax_err = fig.add_subplot(gs[0, 1]) 
+        ax_err.plot(self.error_avg, linewidth=0.5)
+        # ax_err.axhline(y=nmax, linewidth=0.5, linestyle="--", color="k") 
+    
+        # Format
+        ax_err.set_title("Avg. eigenvalue")
+        ax_err.set_ylim(0, np.nanmax(self.error_avg) * 1.1)
+        ax_err.set_ylabel("Eigenvalue")
+        ax_err.set_xlabel("Timepoint")
+        
+        # Average speed -------------------------------------------------------
+    
+        # Plot
+        ax_nrm = fig.add_subplot(gs[1, 0]) 
+        ax_nrm.plot(self.norm_avg, linewidth=0.5)
+        
+        # Format
+        ax_nrm.set_title("Avg. speed")
+        ax_nrm.set_ylim(0, np.nanmax(self.norm_avg) * 1.1)
+        ax_nrm.set_ylabel("Speed (pix.tp-1)")
+        ax_nrm.set_xlabel("Timepoint")
+        
+        # Average dy/dx -------------------------------------------------------
+        
+        # Plot
+        ax_dyx = fig.add_subplot(gs[1, 1]) 
+        ax_dyx.plot(self.dy_avg, linewidth=0.5, label="dy")
+        ax_dyx.plot(self.dx_avg, linewidth=0.5, label="dx")
+        ax_dyx.axhline(y=0, linewidth=0.5, linestyle="--", color="k") 
+        
+        # Format
+        ax_dyx.set_title("Avg. dy/dx")
+        ax_dyx.set_ylabel("dy/dx (pix.tp-1)")
+        ax_dyx.set_xlabel("Timepoint")
+        # ax_dyx.legend(loc="lower left")
+        
+        # Cumulative average dy/dx --------------------------------------------
+    
+        # Plot
+        ax_cyx = fig.add_subplot(gs[1, 2]) 
+        ax_cyx.plot(self.dy_avg_cum, linewidth=0.5, label="cum_dy")
+        ax_cyx.plot(self.dx_avg_cum, linewidth=0.5, label="cum_dx")
+        ax_cyx.axhline(y=0, linewidth=0.5, linestyle="--", color="k")
+        
+        # Format
+        ax_cyx.set_title("Cum. avg. dy/dx")
+        ax_cyx.set_ylabel("Cum. dy/dx (pix.tp-1)")
+        ax_cyx.set_xlabel("Timepoint")
+        # ax_cyx.legend(loc="lower left")
 
 #%% Method : display() --------------------------------------------------------
 
@@ -357,7 +482,7 @@ class KLT:
             self.arr, name="arr", visible=1,
             opacity=0.5
             )
-        viewer.add_image(
+        viewer.add_labels(
             self.coords_map, name="coords", visible=1,
             blending='additive'
             )
@@ -380,68 +505,41 @@ if __name__ == "__main__":
     arr_name = "GBE_eCad_40x.tif"
     msk_name = "GBE_eCad_40x_mask.tif"
     
-    # dataset = "DC_UtrCH_100x.tif"
-    
+    # arr_name = "DC_UtrCH_100x.tif"
+    # msk_name = None
+       
     # Load
     arr = io.imread(data_path / arr_name)
-    msk = io.imread(data_path / msk_name)
+    if msk_name is not None:
+        msk = io.imread(data_path / msk_name)
+    else:
+        msk = None
 
 #%%
     
+    replace = 1
+
     # KLT
     t0 = time.time()
-    print("KLT : ", end="", flush=False)
+    print("klt : ", end="", flush=False)
     klt = KLT(
-        arr, msk=msk, replace=True,
+        arr, msk=msk, replace=replace,
         feat_params=feat_params, 
         flow_params=flow_params,
         )
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
-
+    
+    t0 = time.time()
+    print("klt.display() : ", end="", flush=False)
     klt.display()
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
 
-    msk = klt.msk
-    status, error = klt.status, klt.error
-    n, y, x = klt.n, klt.y, klt.x
-    dy, dx, norm = klt.dy, klt.dx, klt.norm
-    
-    # tmp_msk = klt.tmp_msk
-    # valid_f1 = klt.valid_f1
-    # new_feats = klt.new_feats
-    
-    # viewer = napari.Viewer()
-    # viewer.add_image(tmp_msk)
-    
-#%%
+    x, y, error, status = klt.x, klt.y, klt.error, klt.status
+    n, lost, dx, dy, norm = klt.n, klt.lost, klt.dx, klt.dy, klt.norm 
+    dx_avg, dy_avg, norm_avg, error_avg = (
+        klt.dx_avg, klt.dy_avg, klt.norm_avg, klt.error_avg,
+        )
 
-# idx = np.where(np.nansum(status, axis=0) > 0) 
-# test = status[:, idx[0]]
-
-# def format_outputs(data, status):
-    
-#     def sort_outputs(data):
-#         start = np.argmax(~np.isnan(data), axis=0)
-#         length = np.sum(~np.isnan(data), axis=0)
-#         sort_idx = np.lexsort((length, start))
-#         return data[:, sort_idx]
-    
-#     fmt_data = []
-#     for c, col in enumerate(status.T):
-#         idxs = np.where(col == 0)[0]
-#         ends = np.append(idxs[1:], len(col))
-#         for start, end in zip(idxs, ends):
-#             tmp_data = np.full_like(col, np.nan, dtype=float)
-#             tmp_data[start:end] = data[start:end, c]
-#             fmt_data.append(tmp_data)
-#     fmt_data = sort_outputs(np.stack(fmt_data).T)
-#     return fmt_data
-   
-# new_x = format_outputs(x, status)
-# new_y = format_outputs(y, status)
-# new_status = format_outputs(status, status)
-# new_error = format_outputs(error, status)
-
-# dx = np.gradient(new_x, axis=0)
-# dy = np.gradient(new_y, axis=0)
-# norm = np.hypot(dx, dy)   
+    klt.plot()
