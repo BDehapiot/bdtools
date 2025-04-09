@@ -4,18 +4,12 @@ import cv2
 import napari
 import warnings
 import numpy as np
-from joblib import Parallel, delayed
 
 # bdtools
 from bdtools.norm import norm_pct
 
 # skimage
 from skimage.draw import line
-from skimage.morphology import disk, binary_dilation
-from skimage.filters.rank import gradient
-
-# scipy
-from scipy.ndimage import shift
 
 # matplotlib
 import matplotlib as mpl
@@ -23,24 +17,6 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 #%% Comments ------------------------------------------------------------------
-
-# Feature detection
-feat_params={
-    "maxCorners"        : 10000,
-    "qualityLevel"      : 1e-4,
-    "minDistance"       : 3,
-    "blockSize"         : 3,
-    "useHarrisDetector" : True,
-    "k"                 : 0.04,
-    }
-
-# Optical flow
-flow_params={
-    "winSize"           : (9, 9),
-    "maxLevel"          : 3,
-    "criteria"          : (5, 0.01),
-    "minEigThreshold"   : 1e-4,
-    }
 
 '''
 
@@ -88,7 +64,7 @@ Optical Flow Parameters
     
     flags (cv2.OPTFLOW_LK_GET_MIN_EIGENVALS):
         Instructs the algorithm to return the minimum eigenvalue of the gradient 
-        matrix as a quality measure instead of the usual tracking error.
+        matrix as a quality measure instead of the usual tracking egval.
     
     minEigThreshold (1e-2):
         Minimum eigenvalue threshold. Features with a value below this are 
@@ -175,19 +151,44 @@ class KLT:
         self.y      = []
         self.x      = []
         self.status = []
-        self.error  = []       
+        self.egval  = []       
         
         # Nested functions ----------------------------------------------------
         
         def invalid_features(f, msk):
             x, y = f[:, 0], f[:, 1]
-            out_frm = (x <= 0) | (x >= self.nX) | (y <= 0) | (y >= self.nY)
+            out_frm = (x <= 1) | (x >= self.nX - 1) | (y <= 1) | (y >= self.nY - 1)
             f[out_frm] = np.nan
             valid = ~np.isnan(x) & ~np.isnan(y)
             out_msk = np.zeros_like(x, dtype=bool)
             out_msk[valid] = (
                 msk[y[valid].astype(int), x[valid].astype(int)] == 0)
             return out_frm | out_msk
+        
+        def replace_features(f1, status, msk):
+            
+            # Identify lost tracks
+            lost_idx = np.where(np.isnan(f1[:, 0]))[0]
+            n_lost = len(lost_idx)
+            
+            if n_lost > 0:
+                
+                # Create mask
+                tmp_msk = np.zeros_like(msk)
+                valid = f1[~np.isnan(f1[:, 0])].astype(int)
+                tmp_msk[valid[:, 1], valid[:, 0]] = 255
+                tmp_msk = msk ^ tmp_msk
+
+                # Create new features
+                feat_params = self.feat_params.copy()
+                feat_params["maxCorners"] = n_lost
+                fnew = cv2.goodFeaturesToTrack(
+                    img1, mask=tmp_msk, **feat_params)
+                fnew = fnew.squeeze()
+                
+                # Replace 
+                f1[lost_idx] = fnew
+                status[lost_idx] = 2
                 
         def format_data(data, status):
         
@@ -225,50 +226,29 @@ class KLT:
             img1 = self.arr[t, ...]
             
             # Compute optical flow (between f0 and f1)
-            f1, status, error = cv2.calcOpticalFlowPyrLK(
+            f1, status, egval = cv2.calcOpticalFlowPyrLK(
                 img0, img1, f0, None, **self.flow_params
                 )
-            status, error, f0, f1 = [
-                data.squeeze() for data in (status, error, f0, f1)]
+            status, egval, f0, f1 = [
+                data.squeeze() for data in (status, egval, f0, f1)]
 
             # Remove invalid features
             idx = invalid_features(f1, self.msk[t, ...])
             status[idx] = 0
             f1[status == 0] = np.nan
 
-            # Replace lost features *******************************************
-            
+            # Replace lost features
             if self.replace:
-            
-                lost_idx = np.where(np.isnan(f1[:, 0]))[0]
-                n_lost = len(lost_idx)
-                # print(t, n_lost)
-                           
-                if n_lost > 0:
-                    tmp_msk = np.zeros_like(self.msk[t, ...])
-                    valid_f1 = f1[~np.isnan(f1[:, 0])].astype(int)
-                    tmp_msk[valid_f1[:, 1], valid_f1[:, 0]] = 255
-                    tmp_msk = self.msk[t, ...] ^ tmp_msk
-                    
-                    new_feat_params = self.feat_params.copy()
-                    new_feat_params["maxCorners"] = n_lost
-                    new_feats = cv2.goodFeaturesToTrack(
-                        img1, mask=tmp_msk, **new_feat_params)
-                    new_feats = new_feats.squeeze()
-                    
-                    f1[lost_idx] = new_feats
-                    status[lost_idx] = 2
-                                                  
-            # *****************************************************************
-            
+                replace_features(f1, status, msk)
+
             # Append data
             if t == 1:
                 self.status.append(np.full_like(status, 2))
-                self.error.append(error)
+                self.egval.append(egval)
                 self.x.append(f0[:, 0])
                 self.y.append(f0[:, 1])
             self.status.append(status)
-            self.error.append(error)
+            self.egval.append(egval)
             self.x.append(f1[:, 0])
             self.y.append(f1[:, 1])
            
@@ -277,18 +257,18 @@ class KLT:
             f0 = f1.reshape(-1, 1, 2)
             
         # Format data
-        self.status, self.error, self.x, self.y = [
-            np.stack(data) for data in (self.status, self.error, self.x, self.y)]
+        self.status, self.egval, self.x, self.y = [
+            np.stack(data) for data in (self.status, self.egval, self.x, self.y)]
         self.x = format_data(self.x, self.status)
         self.y = format_data(self.y, self.status)
-        self.error = format_data(self.error, self.status)
+        self.egval = format_data(self.egval, self.status)
         self.status = format_data(self.status, self.status)
         
         # Remove 
         idx = np.where(np.nansum(self.status, axis=0) > 2) 
         self.x = self.x[:, idx[0]]
         self.y = self.y[:, idx[0]]
-        self.error = self.error[:, idx[0]]
+        self.egval = self.egval[:, idx[0]]
         self.status = self.status[:, idx[0]]
 
 #%% Method : get_stats() ------------------------------------------------------
@@ -300,64 +280,107 @@ class KLT:
             diff = np.vstack((np.full((1, data.shape[1]), np.nan), diff))
             return diff
         
-        #
-        self.n = np.sum(~np.isnan(self.status), axis=1)
-        self.lost = np.sum(self.status == 2, axis=1)
-        self.lost_cum = np.nancumsum(self.lost[1:], axis=0) 
-        
-        #
-        self.dx = get_diff(self.x)
-        self.dy = get_diff(self.y)
-        self.norm = np.hypot(self.dx, self.dy)
-        
-        #
-        self.dx_avg = np.nanmean(self.dx, axis=1)
-        self.dy_avg = np.nanmean(self.dy, axis=1)
-        self.norm_avg = np.nanmean(self.norm, axis=1)
-        self.error_avg = np.nanmean(self.error, axis=1)
-        self.dx_avg_cum = np.nancumsum(self.dx_avg, axis=0) 
-        self.dy_avg_cum = np.nancumsum(self.dy_avg, axis=0) 
-            
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            self.n = np.sum(~np.isnan(self.status), axis=1)
+            self.lost = np.sum(self.status == 2, axis=1)
+            self.lost_cum = np.nancumsum(self.lost[1:], axis=0) 
+            self.dx = get_diff(self.x)
+            self.dy = get_diff(self.y)
+            self.dx_avg = np.nanmean(self.dx, axis=1)
+            self.dy_avg = np.nanmean(self.dy, axis=1)
+            self.dx_avg_cum = np.nancumsum(self.dx_avg, axis=0) 
+            self.dy_avg_cum = np.nancumsum(self.dy_avg, axis=0) 
+            self.norm = np.hypot(self.dx, self.dy)
+            self.norm_avg = np.nanmean(self.norm, axis=1)
+            self.egval_avg = np.nanmean(self.egval, axis=1)
+
 #%% Method : get_maps() -------------------------------------------------------
 
     def get_maps(self):
         
-        self.coords_map = np.zeros(self.shape, dtype="uint8")
+        def expand_coordinates(ys, xs):
+            offsets = np.array([
+                [-1, -1], [-1,  0], [-1,  1],  
+                [ 0, -1], [ 0,  0], [ 0,  1],  
+                [ 1, -1], [ 1,  0], [ 1,  1],   
+                ])
+            yss = (ys[:, np.newaxis] + offsets[:, 0]).reshape(-1)
+            xss = (xs[:, np.newaxis] + offsets[:, 1]).reshape(-1)
+            return yss, xss
+    
+        self.status_map = np.zeros(self.shape, dtype="uint8")
         self.labels_map = np.zeros(self.shape, dtype="uint16")
-        self.speeds_map = np.zeros(self.shape, dtype=float)
-        self.tracks_map = np.zeros(self.shape, dtype=bool)
+        self.tracks_norm_map = np.full(self.shape, np.nan, dtype=float)
+        self.tracks_egval_map = np.full(self.shape, np.nan, dtype=float)
         
         for t in range(self.nT):
-
+    
             # Extract data  
             y1s = self.y[t, :]
             x1s = self.x[t, :]
             status = self.status[t, :]
+            egval = self.egval[t, :]
             labels = np.arange(y1s.shape[0]) + 1
-            speeds = self.norm[t]
-
+            norm = self.norm[t]
+    
             # Remove non valid data
             valid_idx = ~np.isnan(y1s)
             y1s = y1s[valid_idx].astype(int)
             x1s = x1s[valid_idx].astype(int)
             status = status[valid_idx]
+            egval = egval[valid_idx]
             labels = labels[valid_idx]
-            speeds = speeds[valid_idx]
+            norm = norm[valid_idx]
             
             # Fill maps
-            self.coords_map[t, y1s, x1s] = status
-            self.labels_map[t, y1s, x1s] = labels
-            self.speeds_map[t, y1s, x1s] = speeds
+            y1ss, x1ss = expand_coordinates(y1s, x1s)
+            self.status_map[t, y1ss, x1ss] = np.repeat(status, 9)
+            self.labels_map[t, y1ss, x1ss] = np.repeat(labels, 9)
             if t > 0:
-                y0s = self.y[t - 1, :]
-                x0s = self.x[t - 1, :]
+                y0s = klt.y[t - 1, :]
+                x0s = klt.x[t - 1, :]
                 y0s = y0s[valid_idx]
                 x0s = x0s[valid_idx]
-                for x0, y0, x1, y1 in zip(x0s, y0s, x1s, y1s):
+                for i, (x0, y0, x1, y1) in enumerate(zip(x0s, y0s, x1s, y1s)):
                     if ~np.isnan(x0):
                         x0, y0 = int(x0), int(y0)
                         rr, cc = line(y0, x0, y1, x1)
-                        self.tracks_map[t,rr,cc] = True
+                        self.tracks_norm_map[t,rr,cc] = norm[i]
+                        self.tracks_egval_map[t,rr,cc] = egval[i]
+
+#%% Method : display() --------------------------------------------------------
+
+    def display(self):
+        
+        if not hasattr(self, "coords_map"):
+            self.get_maps()
+        
+        viewer = napari.Viewer()
+        viewer.add_image(
+            self.arr, name="arr", visible=1,
+            opacity=0.5
+            )
+        viewer.add_image(
+            self.status_map == 2, name="status == 2", visible=1,
+            colormap="gray", blending='additive', opacity=1.0
+            )
+        viewer.add_image(
+            self.status_map == 1, name="status == 1", visible=1,
+            colormap="red", blending='additive', opacity=0.33
+            )
+        viewer.add_labels(
+            self.labels_map, name="labels", visible=0,
+            blending='additive'
+            )
+        viewer.add_image(
+            self.tracks_norm_map, name="track norm", visible=0,
+            colormap="turbo", blending='additive'
+            )
+        viewer.add_image(
+            self.tracks_egval_map, name="track egval", visible=0,
+            colormap="turbo", blending='additive'
+            )
 
 #%% Method : plot() -----------------------------------------------------------
 
@@ -421,12 +444,12 @@ class KLT:
     
         # Plot
         ax_err = fig.add_subplot(gs[0, 1]) 
-        ax_err.plot(self.error_avg, linewidth=0.5)
+        ax_err.plot(self.egval_avg, linewidth=0.5)
         # ax_err.axhline(y=nmax, linewidth=0.5, linestyle="--", color="k") 
     
         # Format
         ax_err.set_title("Avg. eigenvalue")
-        ax_err.set_ylim(0, np.nanmax(self.error_avg) * 1.1)
+        ax_err.set_ylim(0, np.nanmax(self.egval_avg) * 1.1)
         ax_err.set_ylabel("Eigenvalue")
         ax_err.set_xlabel("Timepoint")
         
@@ -470,26 +493,7 @@ class KLT:
         ax_cyx.set_xlabel("Timepoint")
         # ax_cyx.legend(loc="lower left")
 
-#%% Method : display() --------------------------------------------------------
 
-    def display(self):
-        
-        if not hasattr(self, "coords_map"):
-            self.get_maps()
-        
-        viewer = napari.Viewer()
-        viewer.add_image(
-            self.arr, name="arr", visible=1,
-            opacity=0.5
-            )
-        viewer.add_labels(
-            self.coords_map, name="coords", visible=1,
-            blending='additive'
-            )
-        viewer.add_image(
-            self.tracks_map, name="tracks", visible=1,
-            blending='additive'
-            )
                 
 #%% Execute -------------------------------------------------------------------
 
@@ -499,12 +503,31 @@ if __name__ == "__main__":
     from skimage import io
     from pathlib import Path
 
+    # Parameters
+    
+    replace = 1
+    
+    feat_params={
+        "maxCorners"        : 2000,
+        "qualityLevel"      : 1e-4,
+        "minDistance"       : 3,
+        "blockSize"         : 3,
+        "useHarrisDetector" : True,
+        "k"                 : 0.04,
+        }
+    
+    flow_params={
+        "winSize"           : (9, 9),
+        "maxLevel"          : 3,
+        "criteria"          : (5, 0.01),
+        "minEigThreshold"   : 1e-2,
+        }
+
+
     # Paths
     data_path = Path.cwd().parent / "_local" / "flow"
-    
     arr_name = "GBE_eCad_40x.tif"
     msk_name = "GBE_eCad_40x_mask.tif"
-    
     # arr_name = "DC_UtrCH_100x.tif"
     # msk_name = None
        
@@ -514,14 +537,10 @@ if __name__ == "__main__":
         msk = io.imread(data_path / msk_name)
     else:
         msk = None
-
-#%%
     
-    replace = 1
-
-    # KLT
+    # klt.process()
     t0 = time.time()
-    print("klt : ", end="", flush=False)
+    print("klt.process() : ", end="", flush=False)
     klt = KLT(
         arr, msk=msk, replace=replace,
         feat_params=feat_params, 
@@ -530,16 +549,24 @@ if __name__ == "__main__":
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
     
+    # klt.display()
     t0 = time.time()
     print("klt.display() : ", end="", flush=False)
     klt.display()
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
-
-    x, y, error, status = klt.x, klt.y, klt.error, klt.status
-    n, lost, dx, dy, norm = klt.n, klt.lost, klt.dx, klt.dy, klt.norm 
-    dx_avg, dy_avg, norm_avg, error_avg = (
-        klt.dx_avg, klt.dy_avg, klt.norm_avg, klt.error_avg,
-        )
-
+    
+    # klt.plot()
+    t0 = time.time()
+    print("klt.plot() : ", end="", flush=False)
     klt.plot()
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+
+    # Fetch attributes
+    x, y, egval, status = klt.x, klt.y, klt.egval, klt.status
+    n, lost, lost_cum = klt.n, klt.lost, klt.lost_cum
+    normn, norm_avg, egval_avg = klt.norm, klt.norm_avg, klt.egval_avg
+    dx, dy, dx_avg, dy_avg, dx_avg_cum, dy_avg_cum = (
+        klt.dx, klt.dy, klt.dx_avg, klt.dy_avg, klt.dx_avg_cum, klt.dy_avg_cum
+        )
