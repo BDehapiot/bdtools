@@ -19,12 +19,6 @@ from matplotlib.gridspec import GridSpec
 #%% Comments ------------------------------------------------------------------
 
 '''
-- Avoid tracks to aggregate around the same point
-
-
-'''
-
-'''
 
 Feature Detection Parameters
 ----------------------------
@@ -182,7 +176,7 @@ class KLT:
                 # Create mask
                 tmp_msk = np.zeros_like(msk)
                 valid = f1[~np.isnan(f1[:, 0])].astype(int)
-                tmp_msk[valid[:, 1], valid[:, 0]] = True
+                tmp_msk[valid[:, 1], valid[:, 0]] = 255
                 tmp_msk = msk ^ tmp_msk
 
                 # Create new features
@@ -231,7 +225,7 @@ class KLT:
             # Get current image
             img1 = self.arr[t, ...]
             
-            # Compute optical flow (between f0 and f1)            
+            # Compute optical flow (between f0 and f1)
             f1, status, egval = cv2.calcOpticalFlowPyrLK(
                 img0, img1, f0, None, **self.flow_params
                 )
@@ -344,8 +338,8 @@ class KLT:
             self.status_map[t, y1ss, x1ss] = np.repeat(status, 9)
             self.labels_map[t, y1ss, x1ss] = np.repeat(labels, 9)
             if t > 0:
-                y0s = self.y[t - 1, :]
-                x0s = self.x[t - 1, :]
+                y0s = klt.y[t - 1, :]
+                x0s = klt.x[t - 1, :]
                 y0s = y0s[valid_idx]
                 x0s = x0s[valid_idx]
                 for i, (x0, y0, x1, y1) in enumerate(zip(x0s, y0s, x1s, y1s)):
@@ -514,7 +508,7 @@ if __name__ == "__main__":
     replace = 1
     
     feat_params={
-        "maxCorners"        : 5000,
+        "maxCorners"        : 2000,
         "qualityLevel"      : 1e-4,
         "minDistance"       : 3,
         "blockSize"         : 3,
@@ -576,4 +570,3 @@ if __name__ == "__main__":
     dx, dy, dx_avg, dy_avg, dx_avg_cum, dy_avg_cum = (
         klt.dx, klt.dy, klt.dx_avg, klt.dy_avg, klt.dx_avg_cum, klt.dy_avg_cum
         )
-        
