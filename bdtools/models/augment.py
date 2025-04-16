@@ -12,7 +12,12 @@ from skimage.exposure import adjust_gamma
 
 def augment(
         imgs, msks, iterations,
-        gamma_p=0.5, gblur_p=0.5, noise_p=0.5, flip_p=0.5, distord_p=0.5,
+        invert_p=0.5, 
+        gamma_p=0.5,
+        gblur_p=0.5,
+        noise_p=0.5,
+        flip_p=0.5,
+        distord_p=0.5,
         ):
     
     """
@@ -59,7 +64,7 @@ def augment(
     # Parameters --------------------------------------------------------------
     
     params = {
-        
+               
         # Gamma
         "gamma_low"  : 0.75,
         "gamma_high" : 1.25,
@@ -83,6 +88,9 @@ def augment(
         }
     
     # Nested functions --------------------------------------------------------
+    
+    def _invert(img):
+        return 1 - img
     
     def _gamma(img, gamma=1.0):
         img_mean = np.mean(img)
@@ -113,6 +121,9 @@ def augment(
         
         img = img.copy()
         msk = msk.copy()
+        
+        if np.random.rand() < invert_p:
+            img = _invert(img)
         
         if np.random.rand() < gamma_p:
             gamma = np.random.uniform(
@@ -212,7 +223,7 @@ if __name__ == "__main__":
     t0 = time.time()
     aug_X, aug_y = augment(
         X, y, iterations,
-        gamma_p=0.0, gblur_p=0.0, noise_p=0.1, flip_p=0.0, distord_p=0.0)
+        invert_p=0.5, gamma_p=0.0, gblur_p=0.0, noise_p=0.0, flip_p=0.0, distord_p=0.0)
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
         
