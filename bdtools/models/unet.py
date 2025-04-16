@@ -137,6 +137,7 @@ class UNet:
 
             # Augment
             iterations=0,
+            invert_p=0.5,
             gamma_p=0.5, 
             gblur_p=0.5, 
             noise_p=0.5, 
@@ -161,6 +162,7 @@ class UNet:
         self.patch_overlap = patch_overlap
         self.downscaling_factor = downscaling_factor 
         self.iterations = iterations
+        self.invert_p = invert_p
         self.gamma_p = gamma_p
         self.gblur_p = gblur_p
         self.noise_p = noise_p
@@ -221,6 +223,7 @@ class UNet:
             print("train - augment data : ", end="", flush=True)
             self.X_trn_prp, self.y_trn_prp = augment(
                 self.X_trn_prp, self.y_trn_prp, self.iterations,
+                invert_p=self.invert_p, 
                 gamma_p=self.gamma_p, 
                 gblur_p=self.gblur_p, 
                 noise_p=self.noise_p, 
@@ -691,7 +694,7 @@ if __name__ == "__main__":
     #     X_trn, y_trn, 
     #     X_val=None, y_val=None,
     #     # X_val=X_val, y_val=y_val,
-    #     preview=False,
+    #     preview=1,
         
     #     # Preprocess
     #     img_norm="global", 
@@ -702,6 +705,7 @@ if __name__ == "__main__":
         
     #     # Augment
     #     iterations=2000,
+    #     invert_p=0.5,
     #     gamma_p=0.5, 
     #     gblur_p=0, 
     #     noise_p=0, 
