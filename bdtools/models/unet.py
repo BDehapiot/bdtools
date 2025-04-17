@@ -266,7 +266,8 @@ class UNet:
         
         # augment_params
         self.augment_params ={
-            "iterations" : self.iterations, 
+            "iterations" : self.iterations,
+            "invert_p" : self.invert_p,
             "gamma_p" : self.gamma_p, 
             "gblur_p" : self.gblur_p,
             "noise_p" : self.noise_p,
@@ -353,14 +354,14 @@ class UNet:
         patch_size = closest_32(patch_size // downscaling_factor)
     
         # Downscale
+        shape0 = X.shape
         if downscaling_factor > 1:
             t0 = time.time()
             log("predict - downscale data : ", end="")
-            shape = X.shape
             X = downscale(X, df=downscaling_factor)
-            shape_dsc = X.shape
             t1 = time.time()
             log(f"{t1 - t0:.3f}s")
+        shape1 = X.shape
         
         # Preprocess
         t0 = time.time()
@@ -384,7 +385,7 @@ class UNet:
         # Merge patches
         t0 = time.time()
         log("predict - merge data : ", end="")
-        prds = merge_patches(prds, shape_dsc, patch_size // 2)
+        prds = merge_patches(prds, shape1, patch_size // 2)
         t1 = time.time()
         log(f"{t1 - t0:.3f}s")
         
@@ -392,62 +393,11 @@ class UNet:
         t0 = time.time()
         log("predict - upscale data : ", end="")
         if downscaling_factor > 1:
-            prds = upscale(prds, shape)
+            prds = upscale(prds, shape0)
         t1 = time.time()
         log(f"{t1 - t0:.3f}s")
     
         return prds
-
-    # def predict(self, X):
-        
-    #     # Fetch
-    #     patch_size = self.preprocess_params["patch_size"]
-    #     downscaling_factor = self.preprocess_params["downscaling_factor"]
-        
-    #     # Adjust variables
-    #     patch_size = closest_32(patch_size // downscaling_factor)
-        
-    #     # Downscale
-    #     if downscaling_factor > 1:
-    #         t0 = time.time()
-    #         print("predict - downscale data : ", end="", flush=True)
-    #         shape = X.shape
-    #         X = downscale(X, df=downscaling_factor)
-    #         shape_dsc = X.shape
-    #         t1 = time.time()
-    #         print(f"{t1 - t0:.3f}s")
-        
-    #     # Preprocess
-    #     t0 = time.time()
-    #     print("predict - preprocess data : ", end="", flush=True)
-    #     X_prp = preprocess(
-    #         X, msks=None, 
-    #         img_norm=self.preprocess_params["img_norm"], 
-    #         patch_size=patch_size,
-    #         patch_overlap=patch_size // 2,
-    #         )
-    #     t1 = time.time()
-    #     print(f"{t1 - t0:.3f}s")
-
-    #     # Predict
-    #     prds = self.model.predict(X_prp).squeeze()
-            
-    #     # Merge patches
-    #     t0 = time.time()
-    #     print("predict - merge data : ", end="", flush=True)
-    #     prds = merge_patches(prds, shape_dsc, patch_size // 2)
-    #     t1 = time.time()
-    #     print(f"{t1 - t0:.3f}s")
-        
-    #     # Upscale
-    #     t0 = time.time()
-    #     print("predict - upscale data : ", end="", flush=True)
-    #     if downscaling_factor > 1:
-    #         prds = upscale(prds, shape)
-    #     t1 = time.time()
-    #     print(f"{t1 - t0:.3f}s")
-
-    #     return prds
 
 #%% Callbacks -----------------------------------------------------------------
 
@@ -694,21 +644,21 @@ if __name__ == "__main__":
     #     X_trn, y_trn, 
     #     X_val=None, y_val=None,
     #     # X_val=X_val, y_val=y_val,
-    #     preview=1,
+    #     preview=0,
         
     #     # Preprocess
-    #     img_norm="global", 
-    #     msk_type="edt", 
+    #     img_norm="image", 
+    #     msk_type="normal", 
     #     patch_size=256,
     #     patch_overlap=0,
-    #     downscaling_factor=2, 
+    #     downscaling_factor=1, 
         
     #     # Augment
     #     iterations=2000,
     #     invert_p=0.5,
     #     gamma_p=0.5, 
-    #     gblur_p=0, 
-    #     noise_p=0, 
+    #     gblur_p=0.5, 
+    #     noise_p=0.5, 
     #     flip_p=0.5, 
     #     distord_p=0.5,
         
@@ -725,7 +675,7 @@ if __name__ == "__main__":
     # Model (predict procedure) -----------------------------------------------
     
     # unet = UNet(
-    #     load_name="model_256_edt_2000-1584_2",
+    #     load_name="model_256_normal_2000-1584_1",
     #     )
     # prds = unet.predict(X_val, verbose=3)
     

@@ -90,7 +90,9 @@ def augment(
     # Nested functions --------------------------------------------------------
     
     def _invert(img):
-        return 1 - img
+        img = 1 - img
+        img = np.clip(img, 0.0, 1.0)
+        return img
     
     def _gamma(img, gamma=1.0):
         img_mean = np.mean(img)
@@ -192,8 +194,8 @@ if __name__ == "__main__":
     from bdtools.models import preprocess
 
     # Parameters
-    # dataset = "em_mito"
-    dataset = "fluo_nuclei"
+    dataset = "em_mito"
+    # dataset = "fluo_nuclei"
     iterations = 5000 # n of augmented iterations 
     patch_size = 256
     
@@ -211,7 +213,7 @@ if __name__ == "__main__":
     t0 = time.time()
     X, y = preprocess(
         X, msks=y, 
-        img_norm="global",
+        img_norm="image",
         patch_size=patch_size,
         patch_overlap=0,
         )
@@ -223,7 +225,13 @@ if __name__ == "__main__":
     t0 = time.time()
     aug_X, aug_y = augment(
         X, y, iterations,
-        invert_p=0.5, gamma_p=0.0, gblur_p=0.0, noise_p=0.0, flip_p=0.0, distord_p=0.0)
+        invert_p=0.5, 
+        gamma_p=0.0, 
+        gblur_p=0.0, 
+        noise_p=0.5, 
+        flip_p=0.0, 
+        distord_p=0.0
+        )
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
         
@@ -232,3 +240,6 @@ if __name__ == "__main__":
     contrast_limits = [0, 1]
     viewer.add_image(aug_X, contrast_limits=contrast_limits)
     viewer.add_labels(aug_y.astype("uint8"))
+    
+    print(np.min(aug_X))
+    print(np.max(aug_X))
