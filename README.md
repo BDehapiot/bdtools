@@ -82,7 +82,7 @@ Your prompt should now start with `(bdtools)` instead of `(base)`
 
 </details>
 
-
-
-
 ## Comments
+
+- Input data are modified when using get_edt with the following parameters (and maybe others):
+    - get_edt(regions, target="foreground", normalize="object")
