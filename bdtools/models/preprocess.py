@@ -5,12 +5,16 @@ from joblib import Parallel, delayed
 
 # bdtools
 from bdtools.mask import get_edt
-from bdtools.norm import norm_gcn, norm_pct
+from bdtools.skel import lab_conn
 from bdtools.patch import extract_patches
+from bdtools.norm import norm_gcn, norm_pct
 
 # Skimage
+from skimage.measure import label
 from skimage.segmentation import find_boundaries 
-from skimage.transform import downscale_local_mean
+
+# Scipy
+from scipy.ndimage import center_of_mass
 
 #%% Comments ------------------------------------------------------------------
 
@@ -48,9 +52,11 @@ def preprocess(
         - "image"  : 0 to 1 normalization per image.
         
     msk_type : str, default="normal"
-        - "normal" : No changes.
-        - "edt"    : Euclidean distance transform of binary/labeled objects.
-        - "bounds" : Boundaries of binary/labeled objects.
+        - "normal"     : No changes.
+        - "edt"        : Euclidean distance transform of binary/labeled objects.
+        - "bounds"     : Boundaries of binary/labeled objects.
+        - "interfaces" : Interfaces between labeled objects.
+        - "centroids"  : Centroids of binary/labeled objects.
 
     patch_size : int, default=256
         Size of extracted patches.
@@ -70,7 +76,7 @@ def preprocess(
         
     """
     
-    valid_types = ["normal", "edt", "bounds"]
+    valid_types = ["normal", "edt", "bounds", "interfaces", "centroids"]
     if msk_type not in valid_types:
         raise ValueError(
             f"Invalid value for msk_type: '{msk_type}'."
@@ -101,7 +107,18 @@ def preprocess(
     def normalize(imgs, sample_fraction=0.1):
         imgs = norm_gcn(imgs, sample_fraction=sample_fraction)
         imgs = norm_pct(imgs, sample_fraction=sample_fraction)
-        return imgs      
+        return imgs   
+    
+    def get_centroids(msk):
+        if len(np.unique(msk)) <= 2:
+            msk = label(msk)
+        coords = center_of_mass(
+            np.ones_like(msk), msk, range(1, msk.max() + 1))
+        coords = np.round(coords).astype(int)
+        centroids = np.zeros_like(msk, dtype=bool)
+        for y, x in coords:
+            centroids[y, x] = True
+        return centroids
                 
     def _preprocess(img, msk=None):
 
@@ -127,7 +144,11 @@ def preprocess(
                     parallel=False,
                     )
             elif msk_type == "bounds":
-                msk = find_boundaries(msk)           
+                msk = find_boundaries(msk)      
+            elif msk_type == "interfaces":
+                msk = lab_conn(msk, conn=2)
+            elif msk_type == "centroids":
+                msk = get_centroids(msk)
             
             img = extract_patches(img, patch_size, patch_overlap)
             msk = extract_patches(msk, patch_size, patch_overlap)
@@ -205,59 +226,6 @@ def preprocess(
 
 #%% Execute -------------------------------------------------------------------
 
-# if __name__ == "__main__": 
-    
-#     import time
-#     import napari
-#     from skimage import io
-#     from pathlib import Path
-    
-#     train_path = Path.cwd().parent.parent / "_local" / "fluo_plants"
-#     rscale_paths = list(train_path.glob("*rscale*"))
-    
-#     imgs, msks = [], []
-#     for path in rscale_paths:
-#         if "mask" in path.name:
-#             msks.append(io.imread(path))
-#         else:
-#             imgs.append(io.imread(path))
-#     imgs = np.stack(imgs)
-#     msks = np.stack(msks)
-    
-#     # Parameters
-#     img_norm = "global"
-#     msk_type = "edt"
-#     patch_size = 128
-#     patch_overlap = 0
-    
-#     #
-#     valid = []
-#     for i, msk in enumerate(msks):
-#         if np.max(msk) > 0:
-#             valid.append(i)
-#     imgs = imgs[valid]
-#     msks = msks[valid]
-               
-#     # Preprocess tests
-#     print("preprocess : ", end="", flush=True)
-#     t0 = time.time()
-#     imgs_prp, msks_prp = preprocess(
-#         imgs, msks, 
-#         img_norm=img_norm,
-#         msk_type=msk_type, 
-#         patch_size=patch_size, 
-#         patch_overlap=patch_overlap,
-#         )
-#     t1 = time.time()
-#     print(f"{t1 - t0:.3f}s")
-    
-#     # Display
-#     viewer = napari.Viewer()
-#     viewer.add_image(imgs_prp)
-#     viewer.add_image(msks_prp) 
-
-#%% Execute -------------------------------------------------------------------
-
 if __name__ == "__main__":
         
     # Imports
@@ -268,10 +236,10 @@ if __name__ == "__main__":
 
     # Parameters
     # dataset = "em_mito"
-    dataset = "fluo_nuclei"
+    dataset = "fluo_nuclei_instance"
     img_norm = "global"
-    msk_type = "edt"
-    patch_size = 256
+    msk_type = "centroids"
+    patch_size = 128
     patch_overlap = 0
     
     # Paths
@@ -299,6 +267,26 @@ if __name__ == "__main__":
     # Display
     viewer = napari.Viewer()
     viewer.add_image(X_prp)
-    viewer.add_image(y_prp) 
+    viewer.add_image(y_prp)  
     
+#%%
     
+    # def get_centroids(msk):
+    #     if len(np.unique(msk)) <= 2:
+    #         msk = label(msk)
+    #     coords = center_of_mass(
+    #         np.ones_like(labels), labels, range(1, labels.max() + 1))
+    #     coords = np.round(coords).astype(int)
+    #     centroids = np.zeros_like(labels, dtype=bool)
+    #     for y, x in coords:
+    #         centroids[y, x] = True
+    #     return centroids
+    
+    # labels = y[1] > 0
+    # unique = np.unique(labels)
+    # centroids = get_centroids(labels)
+    
+    # # Display
+    # viewer = napari.Viewer()
+    # viewer.add_labels(labels)
+    # viewer.add_image(centroids)

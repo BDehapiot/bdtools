@@ -1,9 +1,7 @@
 #%% Imports
 
 import numpy as np
-
-# Skimage
-from skimage.morphology import label
+from numba import njit
 
 #%% Function: pix_conn() ------------------------------------------------------
 
@@ -23,7 +21,7 @@ def pix_conn(arr, conn=2):
     
     Returns
     -------  
-    arr : 2D ndarray (uint8)
+    pconn : 2D ndarray (uint8)
         Processed image.
         Pixel intensity representing number of connected pixels.
     
@@ -39,37 +37,43 @@ def pix_conn(arr, conn=2):
          [1, 0, 1],
          [1, 1, 1]])
     
-    # Convert arr as bool
-    arr = arr.astype('bool')
+    # Initialize
+    arr = arr.astype(bool)
+    arr = np.pad(arr, pad_width=1, constant_values=0) # pad
+    pconn = np.zeros_like(arr, dtype="uint8")
+    idx = np.where(arr > 0) 
     
-    # Pad arr with False
-    arr = np.pad(arr, pad_width=1, constant_values=False)
-    
-    # Find True coordinates
-    idx = np.where(arr == True) 
-    idx_y = idx[0]; idx_x = idx[1]
-    
-    # Define all kernels
+    # Define kernels
     mesh_range = np.arange(-1, 2)
     mesh_x, mesh_y = np.meshgrid(mesh_range, mesh_range)
-    kernel_y = idx_y[:, None, None] + mesh_y
-    kernel_x = idx_x[:, None, None] + mesh_x
+    kernel_y = idx[0][:, None, None] + mesh_y
+    kernel_x = idx[1][:, None, None] + mesh_x
     
-    # Filter image
+    # Process kernels
     all_kernels = arr[kernel_y,kernel_x]
     if conn == 1:
-        all_kernels = np.sum(all_kernels*conn1, axis=(1, 2))
+        all_kernels = np.sum(all_kernels * conn1, axis=(1, 2))
     if conn == 2:    
-        all_kernels = np.sum(all_kernels*conn2, axis=(1, 2))
-    arr = arr.astype('uint8')
-    arr[idx] = all_kernels
+        all_kernels = np.sum(all_kernels * conn2, axis=(1, 2))
     
-    # Unpad arr
-    arr = arr[1:-1,1:-1]
+    # Fill output (pconn)
+    pconn[idx] = all_kernels
     
-    return arr
+    return pconn[1:-1, 1:-1] # un-pad
 
 #%% Function: lab_conn() ------------------------------------------------------
+
+@njit
+def count_unique_nonzero_rows(arr):
+    n_rows = arr.shape[0]
+    out = np.zeros(n_rows, dtype=np.uint8)
+    for i in range(n_rows):
+        seen = set()
+        for val in arr[i]:
+            if val != 0:
+                seen.add(val)
+        out[i] = len(seen)
+    return out
 
 def lab_conn(arr, conn=2):
 
@@ -87,9 +91,9 @@ def lab_conn(arr, conn=2):
     
     Returns
     -------  
-    arr : 2D ndarray (uint8)
+    lconn : 2D ndarray (uint8)
         Processed image.
-        Pixel intensity representing number of connected different labels.
+        Pixel intensity representing number of connected labels.
     
     """       
 
@@ -97,37 +101,71 @@ def lab_conn(arr, conn=2):
         [[0, 1, 0],
          [1, 0, 1],
          [0, 1, 0]])
+
+    # Initialize
+    arr = np.pad(arr, pad_width=1, constant_values=0) # pad
+    lconn = np.zeros_like(arr, dtype=arr.dtype)
+    idx = np.where(arr > 0) 
     
-    # Convert arr as bool
-    arr = arr.astype('bool')
+    if len(idx[0]) > 0:
     
-    # Create labels
-    labels = label(np.invert(arr), connectivity=1)
+        # Define kernels
+        mesh_range = np.arange(-1, 2)
+        mesh_x, mesh_y = np.meshgrid(mesh_range, mesh_range)
+        kernel_y = idx[0][:, None, None] + mesh_y
+        kernel_x = idx[1][:, None, None] + mesh_x
+        
+        # Process kernels
+        all_kernels = arr[kernel_y, kernel_x]
+        if conn == 1:
+            all_kernels = all_kernels * conn1
+        all_kernels = all_kernels.reshape((all_kernels.shape[0], -1))
+        
+        # Fill output (lconn)
+        lconn[idx] = count_unique_nonzero_rows(all_kernels)
+
+    return lconn[1:-1, 1:-1] # un-pad
+
+#%% Execute -------------------------------------------------------------------
+
+if __name__ == "__main__":
     
-    # Pad arr and labels with False and 0
-    arr = np.pad(arr, pad_width=1, constant_values=False)
-    labels = np.pad(labels, pad_width=1, constant_values=0)
+    # Imports
+    import time
+    import napari
+    from skimage import io
+    from pathlib import Path
     
-    # Find True coordinates
-    idx = np.where(arr == True) 
-    idx_y = idx[0]; idx_x = idx[1]
+    # Paths
+    local_path = Path.cwd().parent / "_local"
+    path = list(local_path.rglob("fluo_nuclei_instance_msk_trn.tif"))[0]
     
-    # Define all kernels
-    mesh_range = np.arange(-1, 2)
-    mesh_x, mesh_y = np.meshgrid(mesh_range, mesh_range)
-    kernel_y = idx_y[:, None, None] + mesh_y
-    kernel_x = idx_x[:, None, None] + mesh_x
+    # Open data
+    labels = io.imread(path)
+    masks = labels > 0
     
-    # Filter image
-    all_kernels = labels[kernel_y,kernel_x]
-    if conn == 1:
-        all_kernels = all_kernels*conn1
-    all_kernels = all_kernels.reshape((all_kernels.shape[0], -1))
-    all_kernels.sort(axis=1)  
-    arr = arr.astype('uint8')
-    arr[idx] = (np.diff(all_kernels) > 0).sum(axis=1)
+    # pix_conn()
+    print("pix_conn() : ", end="", flush=True)
+    t0 = time.time()
+    pconns = []
+    for msk in masks:
+        pconns.append(pix_conn(msk, conn=1))
+    pconns = np.stack(pconns)
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
     
-    # Unpad arr
-    arr = arr[1:-1,1:-1]
+    # lab_conn()
+    print("lab_conn() : ", end="", flush=True)
+    t0 = time.time()
+    lconns = []
+    for lbl in labels:
+        lconns.append(lab_conn(lbl, conn=2))
+    lconns = np.stack(lconns)
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
     
-    return arr
+    # Display
+    vwr = napari.Viewer()
+    vwr.add_labels(labels, visible=1)
+    vwr.add_labels(pconns, visible=0)
+    vwr.add_labels(lconns, visible=0)
