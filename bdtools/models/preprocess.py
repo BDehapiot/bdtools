@@ -146,7 +146,7 @@ def preprocess(
             elif msk_type == "bounds":
                 msk = find_boundaries(msk)      
             elif msk_type == "interfaces":
-                msk = lab_conn(msk, conn=2)
+                msk = lab_conn(msk, conn=2) > 1
             elif msk_type == "centroids":
                 msk = get_centroids(msk)
             
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     # dataset = "em_mito"
     dataset = "fluo_nuclei_instance"
     img_norm = "global"
-    msk_type = "centroids"
+    msk_type = "interfaces"
     patch_size = 128
     patch_overlap = 0
     
