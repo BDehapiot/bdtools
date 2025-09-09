@@ -1,6 +1,5 @@
 #%% Imports -------------------------------------------------------------------
 
-import warnings
 import numpy as np
 from joblib import Parallel, delayed 
 
@@ -14,8 +13,8 @@ from scipy.ndimage import distance_transform_edt
 from skimage.measure import label
 from skimage.filters import gaussian
 from skimage.transform import rescale, resize
-from skimage.morphology import binary_dilation
 from skimage.segmentation import find_boundaries
+from skimage.morphology import binary_dilation, skeletonize
 
 #%% Function: get_edt ---------------------------------------------------------
 
@@ -76,9 +75,6 @@ def get_edt(
         raise TypeError("Provided array must be bool or integers labels")
         
     if np.all(arr == arr.flat[0]):
-        # warnings.warn(
-        #     f"edt skipped, input array is full of {arr.flat[0]}."
-        #     )
         return np.zeros_like(arr, dtype="bool")
     
     valid_targets = ["foreground", "background"]
@@ -106,6 +102,8 @@ def get_edt(
         return edt
         
     # Execute -----------------------------------------------------------------
+    
+    arr = arr.copy()
     
     if rescale_factor < 1:
         arr_copy = arr.copy()
@@ -137,56 +135,120 @@ def get_edt(
         
     return edt
             
+#%% Function: get_skel() ------------------------------------------------------
+
+def get_skel(arr, parallel=True):
+    
+    """ 
+    Skeletonize.
+    Based on scipy.ndimage skeletonize().
+
+    Compute skeleton for boolean or integer labelled mask array. If boolean, 
+    skeletonize() is applied over the entire array, whereas if labelled, 
+    skeletonize() is applied individually for each objects.
+    
+    Parameters
+    ----------
+    arr : 2D ndarray (bool or uint8, uint16, int32)
+        Boolean : True foreground, False background.
+        Labelled : non-zero integers objects, 0 background.
+    
+    parallel : bool
+        Compute skeletonize() in parallel if True.
+                
+    Returns
+    -------  
+    skel : 2D ndarray (bool)
+        skeleton of the input array.
+        
+    """
+    
+    if not (np.issubdtype(arr.dtype, np.integer) or
+            np.issubdtype(arr.dtype, np.bool_)):
+        raise TypeError("Provided array must be bool or integers labels")
+        
+    if np.all(arr == arr.flat[0]):
+        return np.zeros_like(arr, dtype="bool")
+    
+    # Nested function(s) ------------------------------------------------------
+    
+    def _get_skel(lab):
+        skel = np.zeros_like(arr)
+        skel[arr == lab] = True
+        skel = skeletonize(skel)
+        return skel
+    
+    # Execute -----------------------------------------------------------------
+    
+    arr = arr.copy()
+    arr[find_boundaries(arr, mode="inner") == 1] = 0
+    arr = label(arr > 0)
+    labels = np.unique(arr)[1:]
+    if parallel:
+        skel = Parallel(n_jobs=-1)(
+            delayed(_get_skel)(lab) for lab in labels)
+    else:
+        skel = [_get_skel(lab) for lab in labels]   
+    skel = np.max(np.stack(skel), axis=0)
+    
+    return skel
+
 #%% Execute -------------------------------------------------------------------
 
-if __name__ == "__main__": 
-    
+if __name__ == "__main__":
+        
+    # Imports
+    import time
     import napari
     from skimage import io
     from pathlib import Path
-    
-    train_path = Path.cwd().parent / "_local" / "fluo_plants"
-    rscale_paths = list(train_path.glob("*rscale*"))
-    
-    msks = []
-    for path in rscale_paths:
-        if "mask" in path.name:
-            msks.append(io.imread(path))
-    msks = np.stack(msks)
-    
-#%%
 
     # Parameters
-    arr = msks
-    arr_backup = arr.copy()
-    rescale_factor = 1
-    # target = "foreground"
-    target = "background"
-    sampling = 1    
+    # dataset = "em_mito"
+    dataset = "fluo_nuclei_instance"
+    img_norm = "global"
+    msk_type = "skeletons"
+    patch_size = 128
+    patch_overlap = 0
     
-    ndim = arr.ndim
+    # Paths
+    local_path = Path.cwd().parent / "_local"
+    msks_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
+    
+    # Load masks
+    msks = io.imread(msks_path)
 
-    if rescale_factor < 1:
-        arr_copy = arr.copy()
-        if ndim == 2:
-            arr = rescale(arr, rescale_factor, order=0)
-        elif ndim == 3:
-            arr = rescale(arr, (1, rescale_factor, rescale_factor), order=0)
-            
-    if target == "foreground":
-        if ndim == 2:
-            arr[find_boundaries(arr, mode="inner") == 1] = 0
-        elif ndim == 3:
-            for ar in arr:
-                ar[find_boundaries(ar, mode="inner") == 1] = 0
-    else:
-        edt = distance_transform_edt(np.invert(arr > 0), sampling=sampling)
-
+    # get_edt()
+    print("get_edt() : ", end="", flush=True)
+    t0 = time.time()
+    edt_outputs = []
+    for msk in msks:
+        edt_outputs.append(
+            get_edt(
+                msk, 
+                target="foreground", 
+                sampling=1, 
+                normalize="none", 
+                rescale_factor=1, 
+                parallel=True,
+                )   
+            )
+    edt_outputs = np.stack(edt_outputs)
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # get_skel()
+    print("get_skel() : ", end="", flush=True)
+    t0 = time.time()
+    skel_outputs = []
+    for msk in msks:
+        skel_outputs.append(get_skel(msk, parallel=True))
+    skel_outputs = np.stack(skel_outputs)
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
     
     # Display
     viewer = napari.Viewer()
-    viewer.add_labels(arr)
-    viewer.add_labels(arr_backup)
-    viewer.add_image(edt)
-    
-    pass
+    viewer.add_labels(msks)
+    viewer.add_image(edt_outputs, blending="additive")
+    viewer.add_image(skel_outputs, blending="additive")

@@ -4,13 +4,14 @@ import numpy as np
 from joblib import Parallel, delayed 
 
 # bdtools
-from bdtools.mask import get_edt
 from bdtools.skel import lab_conn
 from bdtools.patch import extract_patches
+from bdtools.mask import get_edt, get_skel
 from bdtools.norm import norm_gcn, norm_pct
 
 # Skimage
 from skimage.measure import label
+from skimage.morphology import skeletonize
 from skimage.segmentation import find_boundaries 
 
 # Scipy
@@ -57,6 +58,7 @@ def preprocess(
         - "bounds"     : Boundaries of binary/labeled objects.
         - "interfaces" : Interfaces between labeled objects.
         - "centroids"  : Centroids of binary/labeled objects.
+        - "skeletons"  : Skeletons of binary/labeled objects.
 
     patch_size : int, default=256
         Size of extracted patches.
@@ -76,7 +78,7 @@ def preprocess(
         
     """
     
-    valid_types = ["normal", "edt", "bounds", "interfaces", "centroids"]
+    valid_types = ["normal", "edt", "bounds", "interfaces", "centroids", "skeletons"]
     if msk_type not in valid_types:
         raise ValueError(
             f"Invalid value for msk_type: '{msk_type}'."
@@ -119,6 +121,10 @@ def preprocess(
         for y, x in coords:
             centroids[y, x] = True
         return centroids
+    
+    def get_skeleton(msk):
+        msk = skeletonize(msk)
+        return
                 
     def _preprocess(img, msk=None):
 
@@ -149,7 +155,12 @@ def preprocess(
                 msk = lab_conn(msk, conn=2) > 1
             elif msk_type == "centroids":
                 msk = get_centroids(msk)
-            
+            elif msk_type == "skeletons":
+                msk = get_skel(
+                    msk,
+                    parallel=False,
+                    )
+
             img = extract_patches(img, patch_size, patch_overlap)
             msk = extract_patches(msk, patch_size, patch_overlap)
                 
@@ -238,7 +249,7 @@ if __name__ == "__main__":
     # dataset = "em_mito"
     dataset = "fluo_nuclei_instance"
     img_norm = "global"
-    msk_type = "interfaces"
+    msk_type = "skeletons"
     patch_size = 128
     patch_overlap = 0
     
@@ -268,25 +279,3 @@ if __name__ == "__main__":
     viewer = napari.Viewer()
     viewer.add_image(X_prp)
     viewer.add_image(y_prp)  
-    
-#%%
-    
-    # def get_centroids(msk):
-    #     if len(np.unique(msk)) <= 2:
-    #         msk = label(msk)
-    #     coords = center_of_mass(
-    #         np.ones_like(labels), labels, range(1, labels.max() + 1))
-    #     coords = np.round(coords).astype(int)
-    #     centroids = np.zeros_like(labels, dtype=bool)
-    #     for y, x in coords:
-    #         centroids[y, x] = True
-    #     return centroids
-    
-    # labels = y[1] > 0
-    # unique = np.unique(labels)
-    # centroids = get_centroids(labels)
-    
-    # # Display
-    # viewer = napari.Viewer()
-    # viewer.add_labels(labels)
-    # viewer.add_image(centroids)
