@@ -35,6 +35,7 @@ def preprocess(
     
     """ 
     Preprocess images and masks for training or prediction procedures.
+    
     If msks=None, only images will be preprocessed.
     Images and masks will be splitted into patches.
     
@@ -52,15 +53,12 @@ def preprocess(
         - "image"  : 0 to 1 normalization per image.
         
     msk_type : str, default="normal"
-        - "binary"    : Binary masks.
-        - "outlines"  : Boundaries of binary/labeled objects.
-        - "centroids" : Centroids of binary/labeled objects.
-        - "skeletons" : Skeletons of binary/labeled objects.
-        - "contacts"  : Interfaces between labeled objects.
-        - "edt_outlines" : 
-            Euclidean distance transform of binary/labeled objects outlines.
-        - "edt_centroid" : 
-            Euclidean distance transform of binary/labeled objects centroids.        
+        - "normal"     : No changes.
+        - "edt"        : Euclidean distance transform of binary/labeled objects.
+        - "bounds"     : Boundaries of binary/labeled objects.
+        - "interfaces" : Interfaces between labeled objects.
+        - "centroids"  : Centroids of binary/labeled objects.
+        - "skeletons"  : Skeletons of binary/labeled objects.
 
     patch_size : int, default=256
         Size of extracted patches.
@@ -80,11 +78,7 @@ def preprocess(
         
     """
     
-    valid_types = [
-        "binary", "outlines", "centroids", "skeletons", "contacts", 
-        "edt_outlines", "edt_centroid",
-        ]
-    
+    valid_types = ["normal", "edt", "bounds", "interfaces", "centroids", "skeletons"]
     if msk_type not in valid_types:
         raise ValueError(
             f"Invalid value for msk_type: '{msk_type}'."
@@ -146,23 +140,27 @@ def preprocess(
             img = np.array(img).squeeze()
             msk = np.array(msk).squeeze()
             
-            if msk_type == "binary":
+            if msk_type == "normal":
                 msk = msk > 0
-            elif msk_type == "outlines":
-                msk = find_boundaries(msk) 
+            elif msk_type == "edt":
+                msk = get_edt(
+                    msk, 
+                    normalize="object", 
+                    rescale_factor=1, # buggy if not 1
+                    parallel=False,
+                    )
+            elif msk_type == "bounds":
+                msk = find_boundaries(msk)      
+            elif msk_type == "interfaces":
+                msk = lab_conn(msk, conn=2) > 1
             elif msk_type == "centroids":
                 msk = get_centroids(msk)
             elif msk_type == "skeletons":
-                msk = get_skel(msk, parallel=False)
-            elif msk_type == "contacts":
-                msk = lab_conn(msk, conn=2) > 1
-            elif msk_type == "edt_outlines":
-                msk = get_edt(
-                    msk, normalize="object", parallel=False)
-            elif msk_type == "edt_centroid":
-                msk = get_edt(
-                    msk, normalize="object", parallel=False)
-                
+                msk = get_skel(
+                    msk,
+                    parallel=False,
+                    )
+
             img = extract_patches(img, patch_size, patch_overlap)
             msk = extract_patches(msk, patch_size, patch_overlap)
                 
@@ -258,12 +256,13 @@ if __name__ == "__main__":
     
     # Paths
     data_path = Path.cwd().parent.parent / "_local" / dataset
-    msk_path = list(data_path.glob("*msk_trn.tif"))[0]
+    msk_paths = list(data_path.glob("*msk_trn.tif"))
     
     # Load images & masks
-    img_path = str(msk_path).replace("_msk", "")
-    imgs = io.imread(img_path)
-    msks = io.imread(msk_path)
+    for msk_path in msk_paths:
+        img_path = str(msk_path).replace("_msk", "")
+        imgs = io.imread(img_path)
+        msks = io.imread(msk_path)
         
     # Convert to list
     msks = [msk for msk in msks]

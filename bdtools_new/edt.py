@@ -6,15 +6,15 @@ from joblib import Parallel, delayed
 # bdtools
 from bdtools.norm import norm_pct
 
-# Scipy
-from scipy.ndimage import distance_transform_edt
-
-# Skimage
+# skimage
 from skimage.measure import label
 from skimage.filters import gaussian
-from skimage.transform import rescale, resize, downscale_local_mean
+from skimage.transform import rescale, resize
 from skimage.segmentation import find_boundaries
-from skimage.morphology import binary_dilation, skeletonize
+from skimage.morphology import binary_dilation
+
+# scipy
+from scipy.ndimage import distance_transform_edt
 
 #%% Function: get_edt ---------------------------------------------------------
 
@@ -134,143 +134,26 @@ def get_edt(
             edt[arr_copy != 0] = 0
         
     return edt
-            
-#%% Function: get_skel() ------------------------------------------------------
 
-def get_skel(arr, parallel=True):
-    
-    """ 
-    Skeletonize.
-    Based on scipy.ndimage skeletonize().
-
-    Compute skeleton for boolean or integer labelled mask array. If boolean, 
-    skeletonize() is applied over the entire array, whereas if labelled, 
-    skeletonize() is applied individually for each objects.
-    
-    Parameters
-    ----------
-    arr : 2D ndarray (bool or uint8, uint16, int32)
-        Boolean : True foreground, False background.
-        Labelled : non-zero integers objects, 0 background.
-    
-    parallel : bool
-        Compute skeletonize() in parallel if True.
-                
-    Returns
-    -------  
-    skel : 2D ndarray (bool)
-        skeleton of the input array.
-        
-    """
-    
-    if not (np.issubdtype(arr.dtype, np.integer) or
-            np.issubdtype(arr.dtype, np.bool_)):
-        raise TypeError("Provided array must be bool or integers labels")
-        
-    if np.all(arr == arr.flat[0]):
-        return np.zeros_like(arr, dtype="bool")
-    
-    # Nested function(s) ------------------------------------------------------
-    
-    def _get_skel(lab):
-        skel = np.zeros_like(arr)
-        skel[arr == lab] = True
-        skel = skeletonize(skel)
-        return skel
-    
-    # Execute -----------------------------------------------------------------
-    
-    arr = arr.copy()
-    arr[find_boundaries(arr, mode="inner") == 1] = 0
-    arr = label(arr > 0)
-    labels = np.unique(arr)[1:]
-    if parallel:
-        skel = Parallel(n_jobs=-1)(
-            delayed(_get_skel)(lab) for lab in labels)
-    else:
-        skel = [_get_skel(lab) for lab in labels]   
-    skel = np.max(np.stack(skel), axis=0)
-    
-    return skel
-
-#%% Test get_edt() -----------------------------------------------------------
+#%% Execute (test) ------------------------------------------------------------
 
 if __name__ == "__main__":
-        
+    
     # Imports
-    import time
     import napari
-    from skimage import io
-    from pathlib import Path
-
-    # Parameters
-    # dataset = "em_mito"
-    dataset = "fluo_nuclei_instance"
-    # dataset = "fluo_nuclei_semantic"
-    
-    # Paths
-    data_path = Path.cwd().parent / "_local" / dataset
-    msks_path = list(data_path.glob("*msk_trn.tif"))[0]
-    
-    # Load masks
-    msks = io.imread(msks_path)
-
-    # -------------------------------------------------------------------------
+    from edt_test import generate_random_array
     
     # Inputs
-    target = "foreground"
-    sampling = 1
-    normalize = "none" 
-    rescale_factor = 1 
-    parallel = True
-    arr = msks
+    nZ, nY, nX, = 20, 512, 512 
+    nObj = 16
+    min_radius = 8
+    max_radius = 16
     
-    # Nested function(s) ------------------------------------------------------
-    
-    def _get_edt(lab, normalize=normalize):
-        edt = arr == lab
-        edt = binary_dilation(edt)
-        edt = distance_transform_edt(edt, sampling=sampling) * 1 / rescale_factor
-        if normalize == "object":
-            edt = norm_pct(edt, pct_low=0, pct_high=99.9, mask=edt > 0)
-        return edt
-        
-    # Execute -----------------------------------------------------------------
-    
-    arr = arr.copy()
-    
-    if rescale_factor < 1:
-        arr_copy = arr.copy()
-        rf = (1, rescale_factor, rescale_factor)
-        arr = rescale(arr, rf, order=0)
-            
-    if target == "foreground":
-        arr[find_boundaries(arr, mode="inner") == 1] = 0
-    #     arr = label(arr > 0)
-    #     labels = np.unique(arr)[1:]
-    #     if parallel:
-    #         edt = Parallel(n_jobs=-1)(
-    #             delayed(_get_edt)(lab) for lab in labels)
-    #     else:
-    #         edt = [_get_edt(lab) for lab in labels]        
-    #     edt = np.nanmax(np.stack(edt), axis=0).astype("float32")
-    # else:
-    #     edt = distance_transform_edt(np.invert(arr > 0), sampling=sampling)
-        
-    # if normalize == "global":
-    #     edt = norm_pct(edt, pct_low=0, pct_high=99.9, mask=edt > 0)
-        
-    # if rescale_factor < 1:
-    #     edt = resize(edt, arr_copy.shape, order=1)
-    #     edt = gaussian(edt, sigma=1 / rescale_factor / 2)
-    #     if target == "foreground":
-    #         edt[arr_copy == 0] = 0
-    #     else:
-    #         edt[arr_copy != 0] = 0
-    
-    # -------------------------------------------------------------------------
+    # Generate random arrays
+    arr = generate_random_array(nZ, nY, nX, nObj, min_radius, max_radius)
     
     # Display
-    viewer = napari.Viewer()
-    viewer.add_labels(arr)
-    # viewer.add_image(edt, blending="additive")
+    vwr = napari.Viewer()
+    vwr.add_image(arr)
+    
+    pass
