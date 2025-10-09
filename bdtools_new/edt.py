@@ -7,11 +7,11 @@ from joblib import Parallel, delayed
 from bdtools.norm import norm_pct
 
 # skimage
-from skimage.measure import label
 from skimage.filters import gaussian
 from skimage.transform import rescale, resize
-from skimage.segmentation import find_boundaries
+from skimage.measure import label, regionprops
 from skimage.morphology import binary_dilation
+from skimage.segmentation import find_boundaries
 
 # scipy
 from scipy.ndimage import distance_transform_edt
@@ -90,7 +90,7 @@ def get_edt(
             f"Invalid value for normalize: '{normalize}'."
             f" Expected one of {valid_normalize}."
             )
-
+    
     # Nested function(s) ------------------------------------------------------
     
     def _get_edt(lab, normalize=normalize):
@@ -102,7 +102,7 @@ def get_edt(
         return edt
         
     # Execute -----------------------------------------------------------------
-    
+        
     arr = arr.copy()
     
     if rescale_factor < 1:
@@ -140,20 +140,116 @@ def get_edt(
 if __name__ == "__main__":
     
     # Imports
+    import time
     import napari
     from edt_test import generate_random_array
     
+    from scipy.ndimage import center_of_mass
+    
     # Inputs
-    nZ, nY, nX, = 20, 512, 512 
-    nObj = 16
+    nZ, nY, nX, = 1, 1024, 1024
+    nObj = 32
     min_radius = 8
-    max_radius = 16
+    max_radius = 32
+    is3D = False
     
     # Generate random arrays
-    arr = generate_random_array(nZ, nY, nX, nObj, min_radius, max_radius)
+    arr = generate_random_array(
+        nZ, nY, nX, 
+        nObj=nObj, 
+        min_radius=min_radius, 
+        max_radius=max_radius,
+        is3D=is3D,
+        )
+    
+    print(np.max(arr))
+    
+    # get_edt() ---------------------------------------------------------------
+    
+    # Inputs 
+    # target = "foreground" 
+    target = "background" 
+    sampling = 1 
+    normalize = "none" 
+    rescale_factor = 0.5
+    parallel = False
+    
+    if not (np.issubdtype(arr.dtype, np.integer) or
+            np.issubdtype(arr.dtype, np.bool_)):
+        raise TypeError("Provided array must be bool or integers labels")
+        
+    if np.all(arr == arr.flat[0]):
+        # return np.zeros_like(arr, dtype="bool")
+        edt = np.zeros_like(arr, dtype="bool")
+    
+    valid_targets = ["foreground", "background"]
+    if target not in valid_targets:
+        raise ValueError(
+            f"Invalid value for target: '{target}'."
+            f" Expected one of {valid_targets}."
+            )
+    
+    valid_normalize = ["none", "global", "object"]
+    if normalize not in valid_normalize:
+        raise ValueError(
+            f"Invalid value for normalize: '{normalize}'."
+            f" Expected one of {valid_normalize}."
+            )
+    
+    # ---
+    
+    def get_centroid_mask():
+        pass
+    
+    # ---
+    
+    t0 = time.time()
+    print("rescale : ", end="", flush=True)
+    
+    arr = arr.copy()
+    
+    if rescale_factor < 1:
+        arr_copy = arr.copy()
+        if nZ > 1 and not is3D:
+            arr = rescale(arr, (1, rescale_factor, rescale_factor), order=0)
+        else: 
+            arr = rescale(arr, rescale_factor, order=0)            
+        
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # ---
+    
+    t0 = time.time()
+    print("edt : ", end="", flush=True)
+    
+    if target == "foreground":
+        
+        if nZ > 1 and not is3D:
+            for z in range(nZ):
+                tmp = arr[z, ...]
+                tmp[find_boundaries(tmp, mode="inner") == 1] = 0
+        else:
+            arr[find_boundaries(arr, mode="inner") == 1] = 0
+        
+        edt = distance_transform_edt(arr)
+        
+    else:
+        
+        edt = distance_transform_edt(np.invert(arr > 0))
+        
+    # for props in regionprops(arr):
+    #     coords = tuple(props.coords.T)
+    #     edt[coords] /= np.max(edt[coords])
+                
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # ---
+    
+    # -------------------------------------------------------------------------
     
     # Display
     vwr = napari.Viewer()
-    vwr.add_image(arr)
-    
-    pass
+    vwr.add_labels(arr, opacity=0.5)
+    vwr.add_image(edt, blending="additive")
