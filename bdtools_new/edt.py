@@ -144,14 +144,11 @@ if __name__ == "__main__":
     import napari
     from edt_test import generate_random_array
     
-    from scipy.ndimage import center_of_mass
-    
     # Inputs
     nZ, nY, nX, = 1, 1024, 1024
     nObj = 32
     min_radius = 8
     max_radius = 32
-    is3D = False
     
     # Generate random arrays
     arr = generate_random_array(
@@ -159,20 +156,16 @@ if __name__ == "__main__":
         nObj=nObj, 
         min_radius=min_radius, 
         max_radius=max_radius,
-        is3D=is3D,
         )
-    
-    print(np.max(arr))
-    
+        
     # get_edt() ---------------------------------------------------------------
     
     # Inputs 
-    # target = "foreground" 
-    target = "background" 
-    sampling = 1 
-    normalize = "none" 
+    reference = "centroids" # "outlines" or "centroids"
+    process = "foreground"  # "foreground", "background" or "both"
+    normalize = "object"    # "none", "global" or "object"
     rescale_factor = 0.5
-    parallel = False
+    sampling = 1 
     
     if not (np.issubdtype(arr.dtype, np.integer) or
             np.issubdtype(arr.dtype, np.bool_)):
@@ -182,11 +175,18 @@ if __name__ == "__main__":
         # return np.zeros_like(arr, dtype="bool")
         edt = np.zeros_like(arr, dtype="bool")
     
-    valid_targets = ["foreground", "background"]
-    if target not in valid_targets:
+    valid_reference = ["outlines", "centroids"]
+    if reference not in valid_reference:
         raise ValueError(
-            f"Invalid value for target: '{target}'."
-            f" Expected one of {valid_targets}."
+            f"Invalid value for reference: '{reference}'."
+            f" Expected one of {valid_reference}."
+            )
+    
+    valid_process = ["foreground", "background", "both"]
+    if process not in valid_process:
+        raise ValueError(
+            f"Invalid value for process: '{process}'."
+            f" Expected one of {valid_process}."
             )
     
     valid_normalize = ["none", "global", "object"]
@@ -198,19 +198,45 @@ if __name__ == "__main__":
     
     # ---
     
-    def get_centroid_mask():
-        pass
+    def get_centroids_coords(arr):
+        
+        # Get flat indices and array
+        indices = np.indices(arr.shape)
+        indices_flat = [idx.ravel() for idx in indices]
+        arr_flat = arr.ravel()
     
+        # Get unique labels
+        labels, inverse = np.unique(arr_flat, return_inverse=True)
+    
+        # Get centroids coords
+        coords = []
+        for lbl_idx in range(len(labels)):
+            mask = inverse == lbl_idx
+            if not np.any(mask):
+                coords.append(tuple([np.nan] * arr.ndim))
+                continue
+            means = [np.mean(idx[mask]) for idx in indices_flat]
+            int_coords = tuple(int(round(m)) for m in means)
+            coords.append(int_coords)
+    
+        return coords
+    
+    def get_centroids_array(arr):
+        ctd = np.zeros_like(arr, dtype=bool)
+        coords = get_centroids_coords(arr)
+        for coord in coords:
+            ctd[coord] = 1
+        return ctd
+            
     # ---
     
     t0 = time.time()
-    print("rescale : ", end="", flush=True)
+    print("rescale #1 : ", end="", flush=True)
     
-    arr = arr.copy()
+    msk = arr > 0
     
     if rescale_factor < 1:
-        arr_copy = arr.copy()
-        if nZ > 1 and not is3D:
+        if arr.ndim == 3:
             arr = rescale(arr, (1, rescale_factor, rescale_factor), order=0)
         else: 
             arr = rescale(arr, rescale_factor, order=0)            
@@ -223,33 +249,56 @@ if __name__ == "__main__":
     t0 = time.time()
     print("edt : ", end="", flush=True)
     
-    if target == "foreground":
+    if reference == "outlines": 
+        out = find_boundaries(arr, mode="thick")
+        edt = distance_transform_edt(~out)
+    if reference == "centroids":
+        ctd = get_centroids_array(arr)
+        edt = distance_transform_edt(~ctd)
+    # if process == "foreground":
+    #     edt[arr == 0] = 0
+    # if process == "background":
+    #     edt[arr != 0] = 0           
+            
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
         
-        if nZ > 1 and not is3D:
-            for z in range(nZ):
-                tmp = arr[z, ...]
-                tmp[find_boundaries(tmp, mode="inner") == 1] = 0
-        else:
-            arr[find_boundaries(arr, mode="inner") == 1] = 0
-        
-        edt = distance_transform_edt(arr)
-        
-    else:
-        
-        edt = distance_transform_edt(np.invert(arr > 0))
-        
-    # for props in regionprops(arr):
-    #     coords = tuple(props.coords.T)
-    #     edt[coords] /= np.max(edt[coords])
+    # ---
+    
+    t0 = time.time()
+    print("normalize : ", end="", flush=True)
+    
+    if normalize == "global":
+        edt = norm_pct(edt, pct_low=0, pct_high=100)
+    if normalize == "object" and process == "foreground":
+        for props in regionprops(arr):
+            coords = tuple(props.coords.T)
+            edt[coords] /= np.max(edt[coords])
                 
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
-    
+
     # ---
-    
+
+    t0 = time.time()
+    print("rescale #2 : ", end="", flush=True)
+
+    # if rescale_factor < 1:
+    #     edt = resize(edt, msk.shape, order=1)
+    #     # edt = gaussian(edt, sigma=1 / rescale_factor / 2)
+    #     if process == "foreground":
+    #         edt[~msk] = 0
+    #     elif process == "background":
+    #         edt[msk] = 0
+            
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+
     # -------------------------------------------------------------------------
     
     # Display
     vwr = napari.Viewer()
-    vwr.add_labels(arr, opacity=0.5)
-    vwr.add_image(edt, blending="additive")
+    vwr.add_labels(arr, opacity=0.5, visible=0)
+    # vwr.add_image(out, blending="additive", visible=1)
+    vwr.add_image(ctd, blending="additive", visible=1)
+    vwr.add_image(edt, blending="additive", visible=1)

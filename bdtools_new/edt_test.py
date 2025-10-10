@@ -38,8 +38,8 @@ def generate_random_array(
     for i in range(nObj):
         tmp = np.zeros((nZ, nY, nX), dtype="int32").squeeze()
         
-        # 3D array of 3D objects
-        if nZ > 1 and is3D:
+        # 3D array
+        if nZ > 1:
             obj = ball(radius[i])
             z0 = zIdx[i] - obj.shape[0] // 2
             y0 = yIdx[i] - obj.shape[1] // 2
@@ -55,23 +55,7 @@ def generate_random_array(
             
             tmp[z0:z1, y0:y1, x0:x1] = obj
         
-        # 3D array of 2D objects
-        elif nZ > 1 and not is3D:
-            obj = disk(radius[i])
-            y0 = yIdx[i] - obj.shape[0] // 2
-            x0 = xIdx[i] - obj.shape[1] // 2
-            y1 = y0 + obj.shape[0]
-            x1 = x0 + obj.shape[1]
-            
-            if y0 < 0: obj = obj[-y0:, :]; y0 = 0
-            if y1 > nY: obj = obj[:nY - y0, :]; y1 = nY
-            if x0 < 0: obj = obj[:, -x0:]; x0 = 0
-            if x1 > nX: obj = obj[:, :nX - x0]; x1 = nX
-            
-            z = np.clip(zIdx[i], 0, nZ - 1)
-            tmp[z, y0:y1, x0:x1] = obj
-        
-        # 2D array of 2D objects
+        # 2D array
         else:
             obj = disk(radius[i])
             y0 = yIdx[i] - obj.shape[0] // 2
