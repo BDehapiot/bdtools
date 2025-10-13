@@ -1,5 +1,6 @@
 #%% Imports -------------------------------------------------------------------
 
+import warnings
 import numpy as np
 from joblib import Parallel, delayed 
 
@@ -135,37 +136,16 @@ def get_edt(
         
     return edt
 
-#%% Execute (test) ------------------------------------------------------------
+#%% Function: get_edt() -------------------------------------------------------
 
-if __name__ == "__main__":
-    
-    # Imports
-    import time
-    import napari
-    from edt_test import generate_random_array
-    
-    # Inputs
-    nZ, nY, nX, = 1, 1024, 1024
-    nObj = 32
-    min_radius = 8
-    max_radius = 32
-    
-    # Generate random arrays
-    arr = generate_random_array(
-        nZ, nY, nX, 
-        nObj=nObj, 
-        min_radius=min_radius, 
-        max_radius=max_radius,
-        )
-        
-    # get_edt() ---------------------------------------------------------------
-    
-    # Inputs 
-    reference = "centroids" # "outlines" or "centroids"
-    process = "foreground"  # "foreground", "background" or "both"
-    normalize = "object"    # "none", "global" or "object"
-    rescale_factor = 0.5
-    sampling = 1 
+def get_edt(
+    arr,
+    reference="outlines",
+    process="both",
+    normalize="object",
+    invert=False,
+    sampling=1,
+    ):
     
     if not (np.issubdtype(arr.dtype, np.integer) or
             np.issubdtype(arr.dtype, np.bool_)):
@@ -195,8 +175,14 @@ if __name__ == "__main__":
             f"Invalid value for normalize: '{normalize}'."
             f" Expected one of {valid_normalize}."
             )
+        
+    if not process == "foreground" and normalize == "object":
+        warnings.warn(
+            "'object' normalization was skipped, "
+            "select process 'foreground' to activate it"
+            ) 
     
-    # ---
+    # Nested function(s) ------------------------------------------------------
     
     def get_centroids_coords(arr):
         
@@ -210,11 +196,10 @@ if __name__ == "__main__":
     
         # Get centroids coords
         coords = []
-        for lbl_idx in range(len(labels)):
-            mask = inverse == lbl_idx
-            if not np.any(mask):
-                coords.append(tuple([np.nan] * arr.ndim))
+        for lbl_idx, lbl in enumerate(labels):
+            if lbl == 0:
                 continue
+            mask = inverse == lbl_idx
             means = [np.mean(idx[mask]) for idx in indices_flat]
             int_coords = tuple(int(round(m)) for m in means)
             coords.append(int_coords)
@@ -227,78 +212,119 @@ if __name__ == "__main__":
         for coord in coords:
             ctd[coord] = 1
         return ctd
-            
-    # ---
     
-    t0 = time.time()
-    print("rescale #1 : ", end="", flush=True)
+    def get_centroids_edt_object(arr, ctd):
+
+        edt = np.zeros_like(arr, dtype=np.float32)
     
-    msk = arr > 0
+        for props in regionprops(arr):
+            if props.label == 0:
+                continue
+
+            # Get bbox data
+            if arr.ndim == 3:
+                min_z, min_y, min_x, max_z, max_y, max_x = props.bbox
+                bbox_slc = np.s_[min_z:max_z, min_y:max_y, min_x:max_x]
+            else:
+                min_y, min_x, max_y, max_x = props.bbox
+                bbox_slc = np.s_[min_y:max_y, min_x:max_x]
+            bbox_msk = (arr[bbox_slc] == props.label)
+            bbox_ctd = np.logical_and(ctd[bbox_slc], bbox_msk)
+            bbox_edt = distance_transform_edt(~bbox_ctd)
     
-    if rescale_factor < 1:
-        if arr.ndim == 3:
-            arr = rescale(arr, (1, rescale_factor, rescale_factor), order=0)
-        else: 
-            arr = rescale(arr, rescale_factor, order=0)            
-        
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+            # Append edt
+            edt[bbox_slc][bbox_msk] = bbox_edt[bbox_msk]
     
-    # ---
+        return edt
     
-    t0 = time.time()
-    print("edt : ", end="", flush=True)
+    # Execute -----------------------------------------------------------------
     
     if reference == "outlines": 
         out = find_boundaries(arr, mode="thick")
         edt = distance_transform_edt(~out)
     if reference == "centroids":
-        ctd = get_centroids_array(arr)
-        edt = distance_transform_edt(~ctd)
-    # if process == "foreground":
-    #     edt[arr == 0] = 0
-    # if process == "background":
-    #     edt[arr != 0] = 0           
+        ctd = get_centroids_array(arr)  
+        if normalize == "object" and process == "foreground":
+            edt = get_centroids_edt_object(arr, ctd)
+        else:
+            edt = distance_transform_edt(~ctd)
             
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+    if process == "foreground": edt[arr == 0] = 0
+    if process == "background": edt[arr != 0] = 0
         
-    # ---
-    
-    t0 = time.time()
-    print("normalize : ", end="", flush=True)
-    
     if normalize == "global":
-        edt = norm_pct(edt, pct_low=0, pct_high=100)
+        edt = norm_pct(edt, pct_low=0, pct_high=100, mask=arr > 0)
     if normalize == "object" and process == "foreground":
         for props in regionprops(arr):
             coords = tuple(props.coords.T)
             edt[coords] /= np.max(edt[coords])
-                
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
-
-    # ---
-
-    t0 = time.time()
-    print("rescale #2 : ", end="", flush=True)
-
-    # if rescale_factor < 1:
-    #     edt = resize(edt, msk.shape, order=1)
-    #     # edt = gaussian(edt, sigma=1 / rescale_factor / 2)
-    #     if process == "foreground":
-    #         edt[~msk] = 0
-    #     elif process == "background":
-    #         edt[msk] = 0
             
+    if invert:
+        edt = 1 - edt
+        
+    if process == "foreground": edt[arr == 0] = 0
+    if process == "background": edt[arr != 0] = 0
+    
+    return edt
+
+#%% Execute (test) ------------------------------------------------------------
+
+if __name__ == "__main__":
+    
+    # Imports
+    import time
+    import napari
+    
+    # Generate random arrays() ------------------------------------------------
+    
+    from edt_test import generate_random_array
+    
+    # Inputs
+    nZ, nY, nX, = 1, 1024, 1024
+    nObj = 32
+    min_radius = 8
+    max_radius = 32
+    
+    t0 = time.time()
+    print("generate_random_array() : ", end="", flush=True)
+
+    arr = generate_random_array(
+        nZ, nY, nX, 
+        nObj=nObj, 
+        min_radius=min_radius, 
+        max_radius=max_radius,
+        )
+        
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
-
+    
+    # get_edt() ---------------------------------------------------------------
+    
+    # Inputs 
+    reference = "outlines" # "outlines" or "centroids"
+    process = "both" # "foreground", "background" or "both"
+    normalize = "object"   # "none", "global" or "object"
+    invert = False
+    sampling = 1 
+    
+    t0 = time.time()
+    print("get_edt() : ", end="", flush=True)
+    
+    edt = get_edt(
+        arr, 
+        reference=reference,
+        process=process,
+        normalize=normalize,
+        invert=invert,
+        sampling=sampling,
+        )
+    
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
     # -------------------------------------------------------------------------
     
     # Display
     vwr = napari.Viewer()
     vwr.add_labels(arr, opacity=0.5, visible=0)
-    # vwr.add_image(out, blending="additive", visible=1)
-    vwr.add_image(ctd, blending="additive", visible=1)
-    vwr.add_image(edt, blending="additive", visible=1)
+    vwr.add_image(edt, blending="additive", colormap="turbo", visible=1)
