@@ -32,15 +32,15 @@ def get_edt(
     Euclidean distance tranform.
     Based on scipy.ndimage distance_transform_edt().
 
-    Compute Euclidean distance tranform (edt) for boolean or integer labelled
+    Compute Euclidean distance tranform (edt) for boolean or integer labeled
     mask array. If boolean, edt is applied over the entire array, whereas if 
-    labelled, edt is applied individually for each objects.
+    labeled, edt is applied individually for each objects.
     
     Parameters
     ----------
     arr : 2D or 3D ndarray (bool or uint8, uint16, int32)
         Boolean : True foreground, False background.
-        Labelled : non-zero integers objects, 0 background.
+        labeled : non-zero integers objects, 0 background.
         
     target : str, optional, default="foreground"
         - "foreground" : foreground distance to closest background pixel.
@@ -147,13 +147,42 @@ def get_edt(
     sampling=1,
     ):
     
-    if not (np.issubdtype(arr.dtype, np.integer) or
-            np.issubdtype(arr.dtype, np.bool_)):
-        raise TypeError("Provided array must be bool or integers labels")
+    """ 
+    Euclidean distance tranform.
+    Based on scipy.ndimage distance_transform_edt().
+    Compute Euclidean distance tranform (edt) for boolean or integer labeled
+    mask array. If boolean, edt is applied over the entire array, whereas if 
+    labeled, edt is applied individually for each objects.
+    
+    Parameters
+    ----------
+    arr : 2D or 3D ndarray (bool or uint8, uint16, int32)
+        if boolean, True foreground, False background.
+        if labeled, non-zero integers foreground, 0 background.
         
-    if np.all(arr == arr.flat[0]):
-        # return np.zeros_like(arr, dtype="bool")
-        edt = np.zeros_like(arr, dtype="bool")
+    reference : str, optional, default="outlines"
+        reference from which edt is computed.
+        - "outlines" : boundaries of bool/labeled objects
+        - "centroids" : centroids of bool/labeled objects
+        
+    process : str, optional, default="foreground"
+        portion of the input array to be process
+        - "both" : consider the all image.
+        - "foreground" : consider only foreground pixels.
+        - "background" : consider only background pixels.
+
+    normalize : str, optional, default="none"
+        - "none" : no normalization.
+        - "global" : 0 to 1 normalization globally over the entire array.
+        - "object" : 0 to 1 normalization for each object individually.
+        - "object" normalization is only compatible with process "foreground".
+                
+    Returns
+    -------  
+    edt : 2D or 3D ndarray (float)
+        Euclidean distance tranform of the input array.
+        
+    """
     
     valid_reference = ["outlines", "centroids"]
     if reference not in valid_reference:
@@ -176,11 +205,21 @@ def get_edt(
             f" Expected one of {valid_normalize}."
             )
         
+    if not (np.issubdtype(arr.dtype, np.integer) or
+            np.issubdtype(arr.dtype, np.bool_)):
+        raise TypeError("Provided array must be bool or integers labels")
+        
     if not process == "foreground" and normalize == "object":
         warnings.warn(
-            "'object' normalization was skipped, "
-            "select process 'foreground' to activate it"
-            ) 
+            "'object' normalization is only compatible with process 'foreground'"
+            )
+        
+    if np.all(arr == arr.flat[0]):
+        # return np.zeros_like(arr, dtype="bool")
+        edt = np.zeros_like(arr, dtype="bool")    
+        
+    if len(np.unique(arr)) == 2:
+        arr = label(arr)
     
     # Nested function(s) ------------------------------------------------------
     
@@ -254,17 +293,16 @@ def get_edt(
         
     if normalize == "global":
         edt = norm_pct(edt, pct_low=0, pct_high=100, mask=arr > 0)
+        if invert:
+            edt = 1 - edt
     if normalize == "object" and process == "foreground":
         for props in regionprops(arr):
             coords = tuple(props.coords.T)
             edt[coords] /= np.max(edt[coords])
-            
-    if invert:
-        edt = 1 - edt
-        
-    if process == "foreground": edt[arr == 0] = 0
-    if process == "background": edt[arr != 0] = 0
-    
+        if invert:
+            edt = 1 - edt
+            edt[arr == 0] = 0
+                
     return edt
 
 #%% Execute (test) ------------------------------------------------------------
@@ -285,6 +323,8 @@ if __name__ == "__main__":
     min_radius = 8
     max_radius = 32
     
+    ismask = True
+    
     t0 = time.time()
     print("generate_random_array() : ", end="", flush=True)
 
@@ -298,12 +338,15 @@ if __name__ == "__main__":
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
     
+    if ismask:
+        arr = arr > 0
+    
     # get_edt() ---------------------------------------------------------------
     
     # Inputs 
     reference = "outlines" # "outlines" or "centroids"
-    process = "both" # "foreground", "background" or "both"
-    normalize = "object"   # "none", "global" or "object"
+    process = "background" # "foreground", "background" or "both"
+    normalize = "global"   # "none", "global" or "object"
     invert = False
     sampling = 1 
     
