@@ -1,140 +1,25 @@
 #%% Imports -------------------------------------------------------------------
 
 import warnings
-import numpy as np
-from joblib import Parallel, delayed 
+import numpy as np 
 
 # bdtools
 from bdtools.norm import norm_pct
 
 # skimage
-from skimage.filters import gaussian
-from skimage.transform import rescale, resize
 from skimage.measure import label, regionprops
-from skimage.morphology import binary_dilation
 from skimage.segmentation import find_boundaries
 
 # scipy
 from scipy.ndimage import distance_transform_edt
 
-#%% Function: get_edt ---------------------------------------------------------
+#%% Comments ------------------------------------------------------------------
 
-def get_edt(
-        arr, 
-        target="foreground", 
-        sampling=1, 
-        normalize="none", 
-        rescale_factor=1, 
-        parallel=True
-        ):
-        
-    """ 
-    Euclidean distance tranform.
-    Based on scipy.ndimage distance_transform_edt().
-
-    Compute Euclidean distance tranform (edt) for boolean or integer labeled
-    mask array. If boolean, edt is applied over the entire array, whereas if 
-    labeled, edt is applied individually for each objects.
-    
-    Parameters
-    ----------
-    arr : 2D or 3D ndarray (bool or uint8, uint16, int32)
-        Boolean : True foreground, False background.
-        labeled : non-zero integers objects, 0 background.
-        
-    target : str, optional, default="foreground"
-        - "foreground" : foreground distance to closest background pixel.
-        - "background" : background distance to closest foreground pixel.
-        
-    sampling : float or tuple of floats, optional, default=1
-        From Scipy "Spacing of elements along each dimension. If a sequence, 
-        must be of length equal to the input rank; if a single number, this is
-        used for all axes".
-    
-    normalize : str, optional, default="none"
-        - "none" : no normalization.
-        - "global" : 0 to 1 normalization globally over the entire array.
-        - "object" : 0 to 1 normalization for each object individually.
-    
-    rescale_factor : float, optional, default=1.
-        Rescaling factor applied to input array before processing. Rescaling
-        introduces precision loss, especially near object boundaries or for 
-        small objects.
-    
-    parallel : bool
-        Compute edt in parallel if True and target is "foreground".
-                
-    Returns
-    -------  
-    edt : 2D or 3D ndarray (float)
-        Euclidean distance tranform of the input array.
-        
-    """
-    
-    if not (np.issubdtype(arr.dtype, np.integer) or
-            np.issubdtype(arr.dtype, np.bool_)):
-        raise TypeError("Provided array must be bool or integers labels")
-        
-    if np.all(arr == arr.flat[0]):
-        return np.zeros_like(arr, dtype="bool")
-    
-    valid_targets = ["foreground", "background"]
-    if target not in valid_targets:
-        raise ValueError(
-            f"Invalid value for target: '{target}'."
-            f" Expected one of {valid_targets}."
-            )
-    
-    valid_normalize = ["none", "global", "object"]
-    if normalize not in valid_normalize:
-        raise ValueError(
-            f"Invalid value for normalize: '{normalize}'."
-            f" Expected one of {valid_normalize}."
-            )
-    
-    # Nested function(s) ------------------------------------------------------
-    
-    def _get_edt(lab, normalize=normalize):
-        edt = arr == lab
-        edt = binary_dilation(edt)
-        edt = distance_transform_edt(edt, sampling=sampling) * 1 / rescale_factor
-        if normalize == "object":
-            edt = norm_pct(edt, pct_low=0, pct_high=99.9, mask=edt > 0)
-        return edt
-        
-    # Execute -----------------------------------------------------------------
-        
-    arr = arr.copy()
-    
-    if rescale_factor < 1:
-        arr_copy = arr.copy()
-        arr = rescale(arr, rescale_factor, order=0)
-            
-    if target == "foreground":
-        arr[find_boundaries(arr, mode="inner") == 1] = 0
-        arr = label(arr > 0)
-        labels = np.unique(arr)[1:]
-        if parallel:
-            edt = Parallel(n_jobs=-1)(
-                delayed(_get_edt)(lab) for lab in labels)
-        else:
-            edt = [_get_edt(lab) for lab in labels]        
-        edt = np.nanmax(np.stack(edt), axis=0).astype("float32")
-    else:
-        edt = distance_transform_edt(np.invert(arr > 0), sampling=sampling)
-        
-    if normalize == "global":
-        edt = norm_pct(edt, pct_low=0, pct_high=99.9, mask=edt > 0)
-        
-    if rescale_factor < 1:
-        edt = resize(edt, arr_copy.shape, order=1)
-        edt = gaussian(edt, sigma=1 / rescale_factor / 2)
-        if target == "foreground":
-            edt[arr_copy == 0] = 0
-        else:
-            edt[arr_copy != 0] = 0
-        
-    return edt
+'''
+- sampling factor to modify edt values acc. to pix/voxel size
+- rescaling factor to speed up processing
+- still very slow on 3D arrays
+'''
 
 #%% Function: get_edt() -------------------------------------------------------
 
@@ -144,7 +29,6 @@ def get_edt(
     process="both",
     normalize="object",
     invert=False,
-    sampling=1,
     ):
     
     """ 
@@ -177,6 +61,9 @@ def get_edt(
         - "object" : 0 to 1 normalization for each object individually.
         - "object" normalization is only compatible with process "foreground".
                 
+    invert : bool
+        invert edt values if normalized
+        
     Returns
     -------  
     edt : 2D or 3D ndarray (float)
@@ -214,9 +101,13 @@ def get_edt(
             "'object' normalization is only compatible with process 'foreground'"
             )
         
+    if invert and normalize == "none":
+        warnings.warn(
+            "invert requires 'global' or 'object' normalization"
+            )
+        
     if np.all(arr == arr.flat[0]):
-        # return np.zeros_like(arr, dtype="bool")
-        edt = np.zeros_like(arr, dtype="bool")    
+        return np.zeros_like(arr, dtype="bool") 
         
     if len(np.unique(arr)) == 2:
         arr = label(arr)
@@ -277,7 +168,7 @@ def get_edt(
         return edt
     
     # Execute -----------------------------------------------------------------
-    
+        
     if reference == "outlines": 
         out = find_boundaries(arr, mode="thick")
         edt = distance_transform_edt(~out)
@@ -307,60 +198,132 @@ def get_edt(
 
 #%% Execute (test) ------------------------------------------------------------
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     
+#     # Imports
+#     import time
+#     import napari
+    
+#     # Generate random arrays() ------------------------------------------------
+    
+#     from edt_test import generate_random_array
+    
+#     # Inputs
+#     nZ, nY, nX, = 1, 1024, 1024
+#     nObj = 32
+#     min_radius = 8
+#     max_radius = 32
+    
+#     ismask = True
+    
+#     t0 = time.time()
+#     print("generate_random_array() : ", end="", flush=True)
+
+#     arr = generate_random_array(
+#         nZ, nY, nX, 
+#         nObj=nObj, 
+#         min_radius=min_radius, 
+#         max_radius=max_radius,
+#         )
+        
+#     t1 = time.time()
+#     print(f"{t1 - t0:.3f}s")
+    
+#     if ismask:
+#         arr = arr > 0
+    
+#     # get_edt() ---------------------------------------------------------------
+    
+#     # Inputs 
+#     reference = "outlines"
+#     process = "background" 
+#     normalize = "global"   
+#     invert = False
+    
+#     t0 = time.time()
+#     print("get_edt() : ", end="", flush=True)
+    
+#     edt = get_edt(
+#         arr, 
+#         reference=reference,
+#         process=process,
+#         normalize=normalize,
+#         invert=invert,
+#         )
+    
+#     t1 = time.time()
+#     print(f"{t1 - t0:.3f}s")
+    
+#     # -------------------------------------------------------------------------
+    
+#     # Display
+#     vwr = napari.Viewer()
+#     vwr.add_labels(arr, opacity=0.5, visible=0)
+#     vwr.add_image(edt, blending="additive", colormap="turbo", visible=1)
+    
+#%% Execute (data) ------------------------------------------------------------
+
+if __name__ == "__main__":
+
     # Imports
     import time
     import napari
-    
-    # Generate random arrays() ------------------------------------------------
-    
-    from edt_test import generate_random_array
-    
-    # Inputs
-    nZ, nY, nX, = 1, 1024, 1024
-    nObj = 32
-    min_radius = 8
-    max_radius = 32
-    
-    ismask = True
-    
-    t0 = time.time()
-    print("generate_random_array() : ", end="", flush=True)
+    from skimage import io
+    from pathlib import Path
 
-    arr = generate_random_array(
-        nZ, nY, nX, 
-        nObj=nObj, 
-        min_radius=min_radius, 
-        max_radius=max_radius,
-        )
-        
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+    # Parameters
+    dataset = "em_mito"
+    # dataset = "fluo_nuclei_instance"
+    # dataset = "fluo_nuclei_semantic"
     
-    if ismask:
-        arr = arr > 0
+    # Paths
+    data_path = Path.cwd().parent / "_local" / dataset
+    msks_path = list(data_path.glob("*msk_trn.tif"))[0]
     
+    # Load masks
+    msks = io.imread(msks_path)
+    if dataset == "fluo_nuclei_semantic":
+        for i, msk in enumerate(msks):
+            msk_1 = label(msk == 1)
+            msk_2 = label(msk == 2)
+            msk_3 = label(msk == 3) 
+            msk_2[msk_2 > 0] += np.max(msk_1)
+            msk_3[msk_3 > 0] += np.max(msk_2)
+            msks[i, ...] = msk_1 + msk_2 + msk_3
+
     # get_edt() ---------------------------------------------------------------
     
     # Inputs 
-    reference = "outlines" # "outlines" or "centroids"
-    process = "background" # "foreground", "background" or "both"
-    normalize = "global"   # "none", "global" or "object"
+    reference = "outlines"
+    process = "foreground" 
+    normalize = "none"   
     invert = False
-    sampling = 1 
     
     t0 = time.time()
     print("get_edt() : ", end="", flush=True)
     
-    edt = get_edt(
-        arr, 
-        reference=reference,
-        process=process,
-        normalize=normalize,
-        invert=invert,
-        sampling=sampling,
-        )
+    if dataset == "em_mito":
+        
+        edt = get_edt(
+            msks, 
+            reference=reference,
+            process=process,
+            normalize=normalize,
+            invert=invert,
+            )
+        
+    else:
+
+        edt = []
+        for msk in msks:
+            edt.append(get_edt(
+                msk, 
+                reference=reference,
+                process=process,
+                normalize=normalize,
+                invert=invert,
+                ))
+        edt = np.stack(edt)
     
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
@@ -369,5 +332,6 @@ if __name__ == "__main__":
     
     # Display
     vwr = napari.Viewer()
-    vwr.add_labels(arr, opacity=0.5, visible=0)
+    vwr.add_labels(msks, opacity=0.5, visible=0)
     vwr.add_image(edt, blending="additive", colormap="turbo", visible=1)
+    
