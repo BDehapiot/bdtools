@@ -86,3 +86,6 @@ Your prompt should now start with `(bdtools)` instead of `(base)`
 
 - Input data are modified when using get_edt with the following parameters (and maybe others):
     - get_edt(regions, target="foreground", normalize="object")
+- When naming masks with suffix with Annotate, need to be able to fetch previous mask with the suffix (before and after opening the interface)
+- take into consideration all image normalization issues (maybe a separate step to get more control?)
+- Multi-channel input images for deep learning training
