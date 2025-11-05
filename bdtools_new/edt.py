@@ -272,8 +272,8 @@ if __name__ == "__main__":
     from pathlib import Path
 
     # Parameters
-    dataset = "em_mito"
-    # dataset = "fluo_nuclei_instance"
+    # dataset = "em_mito"
+    dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
     
     # Paths
