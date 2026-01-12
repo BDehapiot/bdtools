@@ -81,3 +81,28 @@ def generate_random_array(
     arr = relabel_sequential(arr)[0]
     
     return arr
+
+#%% Execute -------------------------------------------------------------------
+
+if __name__ == "__main__":
+    
+    import napari
+    
+    # Parameters
+    nZ, nY, nX = 8, 256, 512
+    
+    # generate_random_array()
+    arr = generate_random_array(
+        nZ, nY, nX, 
+        nObj=16, 
+        min_radius=8, 
+        max_radius=16, 
+        is3D=False,
+        )
+
+    # Display
+    vwr = napari.Viewer()
+    vwr.add_labels(arr)
+
+
+

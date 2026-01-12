@@ -170,7 +170,7 @@ def get_edt(
     # Execute -----------------------------------------------------------------
         
     if reference == "outlines": 
-        out = find_boundaries(arr, mode="thick")
+        out = find_boundaries(arr, mode="inner")
         edt = distance_transform_edt(~out)
     if reference == "centroids":
         ctd = get_centroids_array(arr)  
@@ -178,10 +178,11 @@ def get_edt(
             edt = get_centroids_edt_object(arr, ctd)
         else:
             edt = distance_transform_edt(~ctd)
-            
+    # arr[edt == 0] = 0
+    
     if process == "foreground": edt[arr == 0] = 0
     if process == "background": edt[arr != 0] = 0
-        
+    
     if normalize == "global":
         edt = norm_pct(edt, pct_low=0, pct_high=100, mask=arr > 0)
         if invert:
@@ -189,11 +190,10 @@ def get_edt(
     if normalize == "object" and process == "foreground":
         for props in regionprops(arr):
             coords = tuple(props.coords.T)
-            edt[coords] /= np.max(edt[coords])
+            edt[coords] /= np.maximum(1, np.max(edt[coords]))
         if invert:
             edt = 1 - edt
             edt[arr == 0] = 0
-                
     return edt
 
 #%% Execute (test) ------------------------------------------------------------
@@ -273,8 +273,8 @@ if __name__ == "__main__":
 
     # Parameters
     # dataset = "em_mito"
-    dataset = "fluo_nuclei_instance"
-    # dataset = "fluo_nuclei_semantic"
+    # dataset = "fluo_nuclei_instance"
+    dataset = "fluo_nuclei_semantic"
     
     # Paths
     data_path = Path.cwd().parent / "_local" / dataset
@@ -295,8 +295,8 @@ if __name__ == "__main__":
     
     # Inputs 
     reference = "outlines"
-    process = "foreground" 
-    normalize = "none"   
+    process = "background" 
+    normalize = "object"   
     invert = False
     
     t0 = time.time()
