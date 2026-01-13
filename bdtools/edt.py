@@ -16,9 +16,7 @@ from scipy.ndimage import distance_transform_edt
 #%% Comments ------------------------------------------------------------------
 
 '''
-- sampling factor to modify edt values acc. to pix/voxel size
-- rescaling factor to speed up processing
-- still very slow on 3D arrays
+- rescaling factor to speed up processing (slow on 3D arrays)
 '''
 
 #%% Function: get_edt() -------------------------------------------------------
@@ -178,7 +176,6 @@ def get_edt(
             edt = get_centroids_edt_object(arr, ctd)
         else:
             edt = distance_transform_edt(~ctd)
-    # arr[edt == 0] = 0
     
     if process == "foreground": edt[arr == 0] = 0
     if process == "background": edt[arr != 0] = 0
@@ -195,73 +192,8 @@ def get_edt(
             edt = 1 - edt
             edt[arr == 0] = 0
     return edt
-
-#%% Execute (test) ------------------------------------------------------------
-
-# if __name__ == "__main__":
     
-#     # Imports
-#     import time
-#     import napari
-    
-#     # Generate random arrays() ------------------------------------------------
-    
-#     from edt_test import generate_random_array
-    
-#     # Inputs
-#     nZ, nY, nX, = 1, 1024, 1024
-#     nObj = 32
-#     min_radius = 8
-#     max_radius = 32
-    
-#     ismask = True
-    
-#     t0 = time.time()
-#     print("generate_random_array() : ", end="", flush=True)
-
-#     arr = generate_random_array(
-#         nZ, nY, nX, 
-#         nObj=nObj, 
-#         min_radius=min_radius, 
-#         max_radius=max_radius,
-#         )
-        
-#     t1 = time.time()
-#     print(f"{t1 - t0:.3f}s")
-    
-#     if ismask:
-#         arr = arr > 0
-    
-#     # get_edt() ---------------------------------------------------------------
-    
-#     # Inputs 
-#     reference = "outlines"
-#     process = "background" 
-#     normalize = "global"   
-#     invert = False
-    
-#     t0 = time.time()
-#     print("get_edt() : ", end="", flush=True)
-    
-#     edt = get_edt(
-#         arr, 
-#         reference=reference,
-#         process=process,
-#         normalize=normalize,
-#         invert=invert,
-#         )
-    
-#     t1 = time.time()
-#     print(f"{t1 - t0:.3f}s")
-    
-#     # -------------------------------------------------------------------------
-    
-#     # Display
-#     vwr = napari.Viewer()
-#     vwr.add_labels(arr, opacity=0.5, visible=0)
-#     vwr.add_image(edt, blending="additive", colormap="turbo", visible=1)
-    
-#%% Execute (data) ------------------------------------------------------------
+#%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
 
@@ -271,12 +203,10 @@ if __name__ == "__main__":
     from skimage import io
     from pathlib import Path
 
-    # Parameters
+    # Paths
     # dataset = "em_mito"
     # dataset = "fluo_nuclei_instance"
     dataset = "fluo_nuclei_semantic"
-    
-    # Paths
     data_path = Path.cwd().parent / "_local" / dataset
     msks_path = list(data_path.glob("*msk_trn.tif"))[0]
     
@@ -334,4 +264,3 @@ if __name__ == "__main__":
     vwr = napari.Viewer()
     vwr.add_labels(msks, opacity=0.5, visible=0)
     vwr.add_image(edt, blending="additive", colormap="turbo", visible=1)
-    

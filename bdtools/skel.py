@@ -1,18 +1,87 @@
-#%% Imports
+#%% Imports -------------------------------------------------------------------
 
 import numpy as np
 from numba import njit
+from joblib import Parallel, delayed 
 
-#%% Function: pix_conn() ------------------------------------------------------
+# skimage
+from skimage.measure import label
+from skimage.morphology import skeletonize
+from skimage.segmentation import find_boundaries
 
-def pix_conn(arr, conn=2):
+#%% Comments ------------------------------------------------------------------
 
+'''
+- works only for 2D images, maybe implement 3D?
+'''
+
+#%% Function: get_skel() ------------------------------------------------------
+
+def get_skel(arr, parallel=True):
+    
     """ 
-    Count number of connected pixels.
+    Skeletonize.
+    Based on scipy.ndimage skeletonize().
+
+    Compute skeleton for boolean or integer labelled mask array. If boolean, 
+    skeletonize() is applied over the entire array, whereas if labelled, 
+    skeletonize() is applied individually for each objects.
     
     Parameters
     ----------
-    arr : 2D ndarray (bool)
+    arr : 2D ndarray (bool or uint8, uint16, int32)
+        Boolean : True foreground, False background.
+        Labelled : non-zero integers objects, 0 background.
+    
+    parallel : bool
+        Compute skeletonize() in parallel if True.
+                
+    Returns
+    -------  
+    skel : 2D ndarray (bool)
+        skeleton of the input array.
+        
+    """
+    
+    # Checks
+    if not (np.issubdtype(arr.dtype, np.integer) or
+            np.issubdtype(arr.dtype, np.bool_)):
+        raise TypeError("Input array must be bool or integers labels")
+    if np.all(arr == arr.flat[0]):
+        return np.zeros_like(arr, dtype="bool")
+    
+    # Nested function(s) ------------------------------------------------------
+    
+    def _get_skel(lbl):
+        skl = np.zeros_like(arr)
+        skl[arr == lbl] = True
+        skl = skeletonize(skl)
+        return skl
+    
+    # Execute -----------------------------------------------------------------
+    
+    arr = arr.copy()
+    arr[find_boundaries(arr, mode="inner") == 1] = 0
+    arr = label(arr > 0)
+    lbls = np.unique(arr)[1:]
+    if parallel:
+        skl = Parallel(n_jobs=-1)(
+            delayed(_get_skel)(lbl) for lbl in lbls)
+    else:
+        skl = [_get_skel(lbl) for lbl in lbls]   
+
+    return np.max(np.stack(skl), axis=0)
+
+#%% Function: pix_conn() ------------------------------------------------------
+
+def pix_conn(arr, conn=2, ):
+
+    """ 
+    Count number of non-zero connected pixels for non-zero pixels.
+    
+    Parameters
+    ----------
+    arr : 2D ndarray
         Skeleton/binary image.
         
     conn: int
@@ -26,7 +95,6 @@ def pix_conn(arr, conn=2):
         Pixel intensity representing number of connected pixels.
     
     """    
-
     conn1 = np.array(
         [[0, 1, 0],
          [1, 0, 1],
@@ -36,12 +104,12 @@ def pix_conn(arr, conn=2):
         [[1, 1, 1],
          [1, 0, 1],
          [1, 1, 1]])
-    
+        
     # Initialize
-    arr = arr.astype(bool)
+    arr = arr > 0
     arr = np.pad(arr, pad_width=1, constant_values=0) # pad
-    pconn = np.zeros_like(arr, dtype="uint8")
     idx = np.where(arr > 0) 
+    pconn = np.zeros_like(arr, dtype="uint8")
     
     # Define kernels
     mesh_range = np.arange(-1, 2)
@@ -61,7 +129,7 @@ def pix_conn(arr, conn=2):
     
     return pconn[1:-1, 1:-1] # un-pad
 
-#%% Function: lab_conn() ------------------------------------------------------
+#%% Function: lbl_conn() ------------------------------------------------------
 
 @njit
 def count_unique_nonzero_rows(arr):
@@ -75,7 +143,7 @@ def count_unique_nonzero_rows(arr):
         out[i] = len(seen)
     return out
 
-def lab_conn(arr, conn=2):
+def lbl_conn(arr, conn=2):
 
     """ 
     Count number of connected different labels.
@@ -95,17 +163,27 @@ def lab_conn(arr, conn=2):
         Processed image.
         Pixel intensity representing number of connected labels.
     
-    """       
-
+    """           
     conn1 = np.array(
         [[0, 1, 0],
          [1, 0, 1],
          [0, 1, 0]])
-
+    
+    # Checks
+    if not (np.issubdtype(arr.dtype, np.integer) or
+            np.issubdtype(arr.dtype, np.bool_)):
+        raise TypeError("Input array must be bool or integers labels")
+    
     # Initialize
-    arr = np.pad(arr, pad_width=1, constant_values=0) # pad
-    lconn = np.zeros_like(arr, dtype=arr.dtype)
-    idx = np.where(arr > 0) 
+    msk = arr > 0
+    if np.issubdtype(arr.dtype, np.bool_):
+        lbl = label(~arr, connectivity=1)
+    else:
+        lbl = arr.copy()
+    msk = np.pad(msk, pad_width=1, constant_values=0) # pad
+    lbl = np.pad(lbl, pad_width=1, constant_values=0) # pad
+    idx = np.where(msk > 0) 
+    lconn = np.zeros_like(msk, dtype="uint8")
     
     if len(idx[0]) > 0:
     
@@ -116,7 +194,7 @@ def lab_conn(arr, conn=2):
         kernel_x = idx[1][:, None, None] + mesh_x
         
         # Process kernels
-        all_kernels = arr[kernel_y, kernel_x]
+        all_kernels = lbl[kernel_y, kernel_x]
         if conn == 1:
             all_kernels = all_kernels * conn1
         all_kernels = all_kernels.reshape((all_kernels.shape[0], -1))
@@ -135,37 +213,57 @@ if __name__ == "__main__":
     import napari
     from skimage import io
     from pathlib import Path
+
+    # Parameters
+    conn = 2
     
     # Paths
-    local_path = Path.cwd().parent / "_local"
-    path = list(local_path.rglob("fluo_nuclei_instance_msk_trn.tif"))[0]
+    # dataset = "wdisk_skel"
+    dataset = "fluo_nuclei_instance"
+    # dataset = "fluo_nuclei_semantic"
+    data_path = Path.cwd().parent / "_local" / dataset
+    if dataset == "wdisk_skel":
+        msk_path = list(data_path.rglob(f"*{dataset}.tif"))[0]
+        msk = io.imread(msk_path).astype(bool)
+    else:
+        msk_path = list(data_path.glob("*msk_trn.tif"))[0]
+        msk = io.imread(msk_path)[0]
     
-    # Open data
-    labels = io.imread(path)
-    masks = labels > 0
+    # -------------------------------------------------------------------------
     
-    # pix_conn()
+    t0 = time.time()
+    print("get_skel() : ", end="", flush=True)
+    
+    skl = get_skel(~msk, parallel=True)
+
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # -------------------------------------------------------------------------
+    
+    t0 = time.time()
     print("pix_conn() : ", end="", flush=True)
-    t0 = time.time()
-    pconns = []
-    for msk in masks:
-        pconns.append(pix_conn(msk, conn=1))
-    pconns = np.stack(pconns)
+    
+    pconn = pix_conn(msk, conn=conn)
+
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
     
-    # lab_conn()
-    print("lab_conn() : ", end="", flush=True)
+    # -------------------------------------------------------------------------
+    
     t0 = time.time()
-    lconns = []
-    for lbl in labels:
-        lconns.append(lab_conn(lbl, conn=2))
-    lconns = np.stack(lconns)
+    print("lbl_conn() : ", end="", flush=True)
+    
+    lconn = lbl_conn(msk, conn=conn)
+
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
+    
+    # -------------------------------------------------------------------------
     
     # Display
     vwr = napari.Viewer()
-    vwr.add_labels(labels, visible=1)
-    vwr.add_labels(pconns, visible=0)
-    vwr.add_labels(lconns, visible=0)
+    vwr.add_labels(msk, visible=1)
+    vwr.add_labels(skl, visible=0)
+    vwr.add_labels(pconn, visible=0)
+    vwr.add_labels(lconn, visible=0)

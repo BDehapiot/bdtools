@@ -1,22 +1,14 @@
 #%% Imports -------------------------------------------------------------------
 
-import sys
-import pytest
 import numpy as np
-from pathlib import Path
+
+# skimage
 from skimage.morphology import disk, ball
 from skimage.segmentation import relabel_sequential
 
-# bdtools
-from bdtools.mask import get_edt
+#%% Function: random_blobs() --------------------------------------------------
 
-ROOT_PATH = Path(__file__).resolve().parents[1]
-DATA_PATH = ROOT_PATH / 'tests' / 'data' / 'patch'
-sys.path.insert(0, str(ROOT_PATH))
-
-#%% Function(s) ---------------------------------------------------------------
-
-def generate_random_array(
+def random_blobs(
         nZ, nY, nX, 
         nObj=16, 
         min_radius=8, 
@@ -86,13 +78,14 @@ def generate_random_array(
 
 if __name__ == "__main__":
     
+    # Imports
     import napari
     
     # Parameters
     nZ, nY, nX = 8, 256, 512
     
-    # generate_random_array()
-    arr = generate_random_array(
+    # random_blobs()
+    arr = random_blobs(
         nZ, nY, nX, 
         nObj=16, 
         min_radius=8, 
@@ -103,6 +96,3 @@ if __name__ == "__main__":
     # Display
     vwr = napari.Viewer()
     vwr.add_labels(arr)
-
-
-
