@@ -7,6 +7,7 @@ from joblib import Parallel, delayed
 # bdtools
 from bdtools.norm import norm_pct
 from bdtools.conn import lbl_conn
+from bdtools.check import Check_parameter
 
 # skimage
 from skimage.measure import label, regionprops
@@ -76,47 +77,45 @@ def get_edt(
         
     """
     
-    valid_reference = ["outlines", "centroids"]
-    if reference not in valid_reference:
-        raise ValueError(
-            f"Invalid value for reference: '{reference}'."
-            f" Expected one of {valid_reference}."
-            )
+    # Checks ------------------------------------------------------------------
     
-    valid_process = ["foreground", "background", "both"]
-    if process not in valid_process:
-        raise ValueError(
-            f"Invalid value for process: '{process}'."
-            f" Expected one of {valid_process}."
-            )
-    
-    valid_normalize = ["none", "global", "object"]
-    if normalize not in valid_normalize:
-        raise ValueError(
-            f"Invalid value for normalize: '{normalize}'."
-            f" Expected one of {valid_normalize}."
-            )
-        
-    if not (np.issubdtype(arr.dtype, np.integer) or
-            np.issubdtype(arr.dtype, np.bool_)):
-        raise TypeError("Provided array must be bool or integers labels")
-        
-    if not process == "foreground" and normalize == "object":
-        warnings.warn(
-            "'object' normalization is only compatible with process 'foreground'"
-            )
-        
-    if invert and normalize == "none":
-        warnings.warn(
-            "invert requires 'global' or 'object' normalization"
-            )
-        
-    if np.all(arr == arr.flat[0]):
-        return np.zeros_like(arr, dtype="bool") 
-        
-    if len(np.unique(arr)) == 2:
+    # Parameter : arr
+    if not isinstance(arr, np.ndarray):
+        raise TypeError("Input data must be np.ndarray")
+        if not (np.issubdtype(arr.dtype, np.integer) or
+                np.issubdtype(arr.dtype, np.bool_)):
+            raise TypeError("Input np.ndarray must be bool or integers labels")
+        if arr.ndim not in [2, 3]:
+            raise TypeError("Input np.ndarray must 2D or 3D")
+    if np.all(arr == arr.flat[0]): # Skip if empty 
+        return np.zeros_like(arr, dtype="float32") 
+    if len(np.unique(arr)) == 2: # Label if binary
         arr = label(arr)
     
+    # Parameter : reference, process, normalize
+    Check_parameter(
+        reference, name="reference", dtype=str,
+        valid=["outlines", "centroids"]
+        )
+    Check_parameter(
+        process, name="process", dtype=str,
+        valid=["foreground", "background", "both"]
+        )
+    Check_parameter(
+        normalize, name="normalize", dtype=str,
+        valid=["none", "global", "object"]
+        )
+    
+    # Parameter : compatibility
+    if not process == "foreground" and normalize == "object":
+        raise ValueError(
+            "'object' normalization is only compatible with process 'foreground'"
+            )
+    if invert and normalize == "none":
+        raise ValueError(
+            "invert requires 'global' or 'object' normalization"
+            )
+
     # Nested function(s) ------------------------------------------------------
     
     def get_centroids_coords(arr):
@@ -217,7 +216,7 @@ def get_skeletons(arr, parallel=True):
     
     Parameters
     ----------
-    arr : 2D ndarray (bool or uint8, uint16, int32)
+    arr : 2D or 3D ndarray (bool or uint8, uint16, int32)
         Boolean : True foreground, False background.
         Labelled : non-zero integers objects, 0 background.
     
@@ -226,17 +225,23 @@ def get_skeletons(arr, parallel=True):
                 
     Returns
     -------  
-    skel : 2D ndarray (bool)
+    skel : 2D or 3D ndarray (bool)
         skeleton of the input array.
         
     """
     
-    # Checks
-    if not (np.issubdtype(arr.dtype, np.integer) or
-            np.issubdtype(arr.dtype, np.bool_)):
-        raise TypeError("Input array must be bool or integers labels")
-    if np.all(arr == arr.flat[0]):
-        return np.zeros_like(arr, dtype="bool")
+    # Checks ------------------------------------------------------------------
+    
+    # Parameter : arr
+    if not isinstance(arr, np.ndarray):
+        raise TypeError("Input data must be np.ndarray")
+        if not (np.issubdtype(arr.dtype, np.integer) or
+                np.issubdtype(arr.dtype, np.bool_)):
+            raise TypeError("Input np.ndarray must be bool or integers labels")
+        if arr.ndim not in [2, 3]:
+            raise TypeError("Input np.ndarray must 2D or 3D")
+    if np.all(arr == arr.flat[0]): # Skip if empty 
+        return np.zeros_like(arr, dtype=bool) 
     
     # Nested function(s) ------------------------------------------------------
     
@@ -260,19 +265,46 @@ def get_skeletons(arr, parallel=True):
 
     return np.max(np.stack(skl), axis=0)
 
-#%% Function: prepare_mask() -----------------------------------------------------
+#%% Function: prepare_masks() --------------------------------------------------
 
-def prepare_mask(arr, mask_type="binary"):
+def prepare_masks(data, mask_type="binary"):
+    
+    """ 
+    Prepare masks.
+    
+    """
+    
+    # Checks ------------------------------------------------------------------
+    
+    # Parameter : data
+    if isinstance(data, list):
+        arr = data[0]
+    elif isinstance(data, np.ndarray):
+        arr = data
+    if not (np.issubdtype(arr.dtype, np.integer) or
+            np.issubdtype(arr.dtype, np.bool_)):
+        raise TypeError("Input np.ndarray must be bool or integers labels")
+    if arr.ndim not in [2, 3]:
+        raise TypeError("Input np.ndarray must 2D or 3D")
+        
+    # Parameter : mask_type
+    valid_mask_type = [
+        "binary", "edt", "outlines", "interfaces", "centroids", "skeletons"]
+    if mask_type not in valid_mask_type:
+        raise ValueError(
+            f"Invalid value for mask_type: '{mask_type}'."
+            f" Expected one of {valid_mask_type}."
+            )
     
     # Nested function(s) ------------------------------------------------------
     
-    def get_centroids(img):
-        if len(np.unique(img)) <= 2:
-            img = label(img, connectivity=1)
+    def get_centroids(arr):
+        if len(np.unique(arr)) <= 2:
+            arr = label(arr, connectivity=1)
         coords = center_of_mass(
-            np.ones_like(img), img, range(1, img.max() + 1))
+            np.ones_like(arr), arr, range(1, arr.max() + 1))
         coords = np.round(coords).astype(int)
-        centroids = np.zeros_like(img, dtype=bool)
+        centroids = np.zeros_like(arr, dtype=bool)
         for y, x in coords:
             centroids[y, x] = True
         return centroids
@@ -341,10 +373,8 @@ if __name__ == "__main__":
         data.append(io.imread(path))
     if len(data) == 1:
         data = data[0]
-    if "nuclei" in dataset:
-        data = list(data)
-    if isinstance(idx, int):
-        data = data[idx]
+    if "wdisk" in dataset:
+        data = ~data
     if "nuclei_semantic" in dataset:
         data_1 = label(data == 1)
         data_2 = label(data == 2)
@@ -352,8 +382,12 @@ if __name__ == "__main__":
         data_2[data_2 > 0] += np.max(data_1)
         data_3[data_3 > 0] += np.max(data_2)
         data = data_1 + data_2 + data_3
+    if "nuclei" in dataset:
+        data = list(data)
+    if isinstance(idx, int):
+        data = data[idx]
     
-    # get_edt() ---------------------------------------------------------------
+#%% get_edt() -----------------------------------------------------------------
     
     # Parameters
     reference = "outlines"
@@ -361,14 +395,17 @@ if __name__ == "__main__":
     normalize = "object"   
     invert = False
     
+    # Initialize
     if isinstance(data, list):
-        img = data[0]
+        arr = data[0]
+    else:
+        arr = data
     
     t0 = time.time()
     print("get_edt() : ", end="", flush=True)
     
     edt = get_edt(
-        img, 
+        arr, 
         reference=reference,
         process=process,
         normalize=normalize,
@@ -378,25 +415,34 @@ if __name__ == "__main__":
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
     
-    # get_skeletons() ---------------------------------------------------------
+#%% get_skeletons() -----------------------------------------------------------
         
+    # # Initialize
+    # if isinstance(data, list):
+    #     arr = data[0]
+    # else:
+    #     arr = data
+    
     # t0 = time.time()
     # print("get_skeletons() : ", end="", flush=True)
     
-    # skl = get_skeletons(arr, parallel=False)
+    # skl = get_skeletons(arr, parallel=True)
     
     # t1 = time.time()
     # print(f"{t1 - t0:.3f}s")
     
-    # prep_mask() -------------------------------------------------------------
+#%% prep_mask() ---------------------------------------------------------------
         
-    # Parameters
+    # # Parameters
     # mask_type = "binary"
     # mask_type = "edt"
     # mask_type = "outlines"
     # mask_type = "interfaces"
     # mask_type = "centroids"
     # mask_type = "skeletons"
+    
+    # # Initialize
+    
     
     # t0 = time.time()
     # print("prepare_mask() : ", end="", flush=True)
@@ -406,12 +452,11 @@ if __name__ == "__main__":
     # t1 = time.time()
     # print(f"{t1 - t0:.3f}s")
 
-    # -------------------------------------------------------------------------
+#%% Display -------------------------------------------------------------------
 
-    # Display
     # vwr = napari.Viewer()
     # vwr.add_labels(arr, visible=1, opacity=0.5)
     # vwr.add_image(prp, blending="additive", visible=1)
-    # vwr.add_image(edt, blending="additive", visible=0)
-    # vwr.add_image(skl, blending="additive", visible=0)
+    # vwr.add_image(edt, blending="additive", visible=1)
+    # vwr.add_image(skl, blending="additive", visible=1)
         

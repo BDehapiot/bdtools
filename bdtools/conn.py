@@ -14,7 +14,7 @@ from skimage.measure import label
 
 #%% Function: pix_conn() ------------------------------------------------------
 
-def pix_conn(arr, conn=2, ):
+def pix_conn(arr, conn=2):
 
     """ 
     Count number of non-zero connected pixels for non-zero pixels.
