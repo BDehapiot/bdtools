@@ -194,9 +194,6 @@ if __name__ == "__main__":
     from skimage import io
     from pathlib import Path
 
-    # Parameters
-    size = 256
-    overlap = 128 
     
     # Paths
     # dataset = "em_mito"
@@ -211,6 +208,10 @@ if __name__ == "__main__":
     msks = io.imread(msk_path)
         
     # -------------------------------------------------------------------------
+    
+    # Parameters
+    size = 256
+    overlap = 128 
     
     t0 = time.time()
     print("extract patches : ", end="", flush=True)

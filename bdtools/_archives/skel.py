@@ -234,7 +234,7 @@ if __name__ == "__main__":
     t0 = time.time()
     print("get_skel() : ", end="", flush=True)
     
-    skl = get_skel(~msk, parallel=True)
+    skl = get_skel(msk, parallel=True)
 
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
