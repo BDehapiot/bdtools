@@ -5,17 +5,14 @@
 class Check_parameter:
     
     def __init__(
-        self, value, name=None, 
-        ctype=None, dtype=None, 
-        valid=None, vrange=None,
-        ):
+        self, value, name=None, ctype=None, valid=None, vrange=None):
         
         # Fetch
-        self.value = value
-        self.name  = name
-        self.ctype = ctype
-        self.valid = valid
-        self.vrange= vrange
+        self.value  = value
+        self.name   = name
+        self.ctype  = ctype
+        self.valid  = valid
+        self.vrange = vrange
         
         # Run
         self.check_type()
@@ -29,14 +26,14 @@ class Check_parameter:
         if self.ctype is not None:
             if not isinstance(self.value, self.ctype):
                 raise TypeError(
-                    f"Invalid {self.name!r} type {ctype!r}, "
+                    f"Invalid '{self.name}' type {ctype!r}, "
                     f"expected {self.ctype!r}"
                     )
                 
     def check_valid(self):
         if not self.value in self.valid:
             raise ValueError(
-                f"Invalid {self.name!r} value {self.value!r}, "
+                f"Invalid '{self.name}' value {self.value!r}, "
                 f"expected {self.valid!r}"
                 )
             
@@ -52,9 +49,7 @@ class Check_parameter:
 class Check_data:
     
     def __init__(
-        self, value, name=None, dtype=None, 
-        ndim=None, 
-        ):
+        self, value, name=None, dtype=None, ndim=None):
         
         # Fetch
         self.value = value
@@ -64,24 +59,45 @@ class Check_data:
         
         # Run
         self.check_type()
-        # if self.ndim is not None:
-        #     self.check_ndim()
         
-
     def check_type(self):
+
         ctype = type(self.value) 
         if not isinstance(self.value, (np.ndarray, list)):
             raise TypeError(
-                f"Invalid {self.name!r} type {ctype!r}, "
+                f"Invalid '{self.name}' type {ctype!r}, "
                 f"expected {(np.ndarray, list)!r}"
                 )
-        # if self.dtype is not None:
-        #     if ctype == np.ndarray:
-        #         dtype = self.value.dtype
-        #         if dtype not in self.dtype:
+        
+        if self.dtype is not None:
+            
+            if ctype == np.ndarray:
+                dtype = self.value.dtype
+                if dtype != self.dtype:
+                    raise TypeError(
+                        f"Invalid '{self.name}' data type {dtype!r}, "
+                        f"expected {self.dtype!r}"
+                        )
+                    
+            if ctype == list:
+                for i, arr in enumerate(self.value):
+                    dtype = arr.dtype
+                    if dtype != self.dtype:
+                        raise TypeError(
+                            f"Invalid '{self.name}' at index [{i}] "
+                            f"data type {dtype!r}, "
+                            f"expected {self.dtype!r}"
+                            )
+                        
+#%%
+                    
+        # def check_type(self):
+        #     ctype = type(self.value)       
+        #     if self.ctype is not None:
+        #         if not isinstance(self.value, self.ctype):
         #             raise TypeError(
-        #                 f"Invalid {self.name!r} data type '{dtype.name}', "
-        #                 f"expected {self.dtype!r}"
+        #                 f"Invalid {self.name!r} type {ctype!r}, "
+        #                 f"expected {self.ctype!r}"
         #                 )
             
         # # Encoding
@@ -144,16 +160,16 @@ if __name__ == "__main__":
         )
     
     value_2 = np.full((128, 128, 128), 0.5)
-    value_2 = 1
     Check_data(
-        value_2, name="arr", dtype=np.integer,
+        value_2, name="input_2", dtype=np.integer,
         ndim=[2, 3],
         )
     
-    # value_3 = [np.full((128, 128, 128), 0.5) for _ in range(10)]
-    # print(value_3.dtype)
+    # value_3 = []
+    # for _ in range(10):
+    #     value_3.append(np.full((128, 128, 128), 0.5))
     # Check_data(
-    #     value_3, name="arr", dtype=np.floating,
-    #     ndim=(2, 3),
+    #     value_3, name="input_3", dtype=np.integer,
+    #     ndim=[2, 3],
     #     )
     
