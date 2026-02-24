@@ -7,7 +7,7 @@ from joblib import Parallel, delayed
 # bdtools
 from bdtools.norm import norm_pct
 from bdtools.conn import lbl_conn
-from bdtools.check import Check_parameter
+from bdtools.check import Check_parameter, Check_data
 
 # skimage
 from skimage.measure import label, regionprops
@@ -78,15 +78,9 @@ def get_edt(
     """
     
     # Checks ------------------------------------------------------------------
-    
+       
     # Parameter : arr
-    if not isinstance(arr, np.ndarray):
-        raise TypeError("Input data must be np.ndarray")
-        if not (np.issubdtype(arr.dtype, np.integer) or
-                np.issubdtype(arr.dtype, np.bool_)):
-            raise TypeError("Input np.ndarray must be bool or integers labels")
-        if arr.ndim not in [2, 3]:
-            raise TypeError("Input np.ndarray must 2D or 3D")
+    Check_data(arr, name="arr", dtype=[int, bool], ndim=[2, 3])
     if np.all(arr == arr.flat[0]): # Skip if empty 
         return np.zeros_like(arr, dtype="float32") 
     if len(np.unique(arr)) == 2: # Label if binary
@@ -94,15 +88,15 @@ def get_edt(
     
     # Parameter : reference, process, normalize
     Check_parameter(
-        reference, name="reference", dtype=str,
+        reference, name="reference", ctype=str,
         valid=["outlines", "centroids"]
         )
     Check_parameter(
-        process, name="process", dtype=str,
+        process, name="process", ctype=str,
         valid=["foreground", "background", "both"]
         )
     Check_parameter(
-        normalize, name="normalize", dtype=str,
+        normalize, name="normalize", ctype=str,
         valid=["none", "global", "object"]
         )
     
@@ -115,7 +109,7 @@ def get_edt(
         raise ValueError(
             "invert requires 'global' or 'object' normalization"
             )
-
+        
     # Nested function(s) ------------------------------------------------------
     
     def get_centroids_coords(arr):
@@ -233,13 +227,7 @@ def get_skeletons(arr, parallel=True):
     # Checks ------------------------------------------------------------------
     
     # Parameter : arr
-    if not isinstance(arr, np.ndarray):
-        raise TypeError("Input data must be np.ndarray")
-        if not (np.issubdtype(arr.dtype, np.integer) or
-                np.issubdtype(arr.dtype, np.bool_)):
-            raise TypeError("Input np.ndarray must be bool or integers labels")
-        if arr.ndim not in [2, 3]:
-            raise TypeError("Input np.ndarray must 2D or 3D")
+    Check_data(arr, name="arr", dtype=[int, bool], ndim=[2, 3])
     if np.all(arr == arr.flat[0]): # Skip if empty 
         return np.zeros_like(arr, dtype=bool) 
     
@@ -277,24 +265,13 @@ def prepare_masks(data, mask_type="binary"):
     # Checks ------------------------------------------------------------------
     
     # Parameter : data
-    if isinstance(data, list):
-        arr = data[0]
-    elif isinstance(data, np.ndarray):
-        arr = data
-    if not (np.issubdtype(arr.dtype, np.integer) or
-            np.issubdtype(arr.dtype, np.bool_)):
-        raise TypeError("Input np.ndarray must be bool or integers labels")
-    if arr.ndim not in [2, 3]:
-        raise TypeError("Input np.ndarray must 2D or 3D")
+    Check_data(data, name="data", dtype=[int, bool], ndim=[2, 3])
         
     # Parameter : mask_type
-    valid_mask_type = [
-        "binary", "edt", "outlines", "interfaces", "centroids", "skeletons"]
-    if mask_type not in valid_mask_type:
-        raise ValueError(
-            f"Invalid value for mask_type: '{mask_type}'."
-            f" Expected one of {valid_mask_type}."
-            )
+    Check_parameter(
+        mask_type, name="mask_type", ctype=str,
+        valid=["binary", "edt", "outlines", "interfaces", "centroids", "skeletons"]
+        )
     
     # Nested function(s) ------------------------------------------------------
     
@@ -389,31 +366,31 @@ if __name__ == "__main__":
     
 #%% get_edt() -----------------------------------------------------------------
     
-    # Parameters
-    reference = "outlines"
-    process = "foreground" 
-    normalize = "object"   
-    invert = False
+    # # Parameters
+    # reference = "outlines"
+    # process = "foreground" 
+    # normalize = "object"   
+    # invert = False
     
-    # Initialize
-    if isinstance(data, list):
-        arr = data[0]
-    else:
-        arr = data
+    # # Initialize
+    # if isinstance(data, list):
+    #     arr = data[0]
+    # else:
+    #     arr = data
     
-    t0 = time.time()
-    print("get_edt() : ", end="", flush=True)
+    # t0 = time.time()
+    # print("get_edt() : ", end="", flush=True)
     
-    edt = get_edt(
-        arr, 
-        reference=reference,
-        process=process,
-        normalize=normalize,
-        invert=invert,
-        )
+    # edt = get_edt(
+    #     arr, 
+    #     reference=reference,
+    #     process=process,
+    #     normalize=normalize,
+    #     invert=invert,
+    #     )
     
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+    # t1 = time.time()
+    # print(f"{t1 - t0:.3f}s")
     
 #%% get_skeletons() -----------------------------------------------------------
         
@@ -433,30 +410,29 @@ if __name__ == "__main__":
     
 #%% prep_mask() ---------------------------------------------------------------
         
-    # # Parameters
-    # mask_type = "binary"
+    # Parameters
+    mask_type = "binary"
     # mask_type = "edt"
     # mask_type = "outlines"
     # mask_type = "interfaces"
     # mask_type = "centroids"
     # mask_type = "skeletons"
     
-    # # Initialize
+    # Initialize
     
+    t0 = time.time()
+    print("prepare_mask() : ", end="", flush=True)
     
-    # t0 = time.time()
-    # print("prepare_mask() : ", end="", flush=True)
+    prp = prepare_masks(data, mask_type=mask_type)
     
-    # prp = prepare_mask(arr, mask_type=mask_type)
-    
-    # t1 = time.time()
-    # print(f"{t1 - t0:.3f}s")
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
 
 #%% Display -------------------------------------------------------------------
 
-    # vwr = napari.Viewer()
-    # vwr.add_labels(arr, visible=1, opacity=0.5)
-    # vwr.add_image(prp, blending="additive", visible=1)
-    # vwr.add_image(edt, blending="additive", visible=1)
-    # vwr.add_image(skl, blending="additive", visible=1)
+    vwr = napari.Viewer()
+    vwr.add_labels(arr, visible=1, opacity=0.5)
+    vwr.add_image(prp, blending="additive", visible=1)
+    vwr.add_image(edt, blending="additive", visible=1)
+    vwr.add_image(skl, blending="additive", visible=1)
         
