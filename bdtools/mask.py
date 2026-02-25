@@ -1,13 +1,12 @@
 #%% Imports -------------------------------------------------------------------
 
-import warnings
 import numpy as np
 from joblib import Parallel, delayed 
 
 # bdtools
 from bdtools.norm import norm_pct
 from bdtools.conn import lbl_conn
-from bdtools.check import Check_parameter, Check_data
+from bdtools.check import Check_parameter
 
 # skimage
 from skimage.measure import label, regionprops
@@ -17,58 +16,47 @@ from skimage.segmentation import find_boundaries
 # scipy
 from scipy.ndimage import distance_transform_edt, center_of_mass
 
-#%% Comments ------------------------------------------------------------------
-
-'''
-- get_edt() and get_skeletons works on 2D ndarray
-- prepare_mask() works either on 2D ndarrays or list of 2D ndarrays.
-  3D ndarrays are converted in list of 2D ndarrays over the 1st dimension.
-  It's necessary that prepare_mask() works in differently sized images.
-  Also, prepare_mask() outputs a list if a list was inputed.
-'''
-
 #%% Function: get_edt() -------------------------------------------------------
 
 def get_edt(
     arr,
     reference="outlines",
-    process="foreground",
+    mode="foreground",
     normalize="object",
     invert=False,
     ):
     
     """ 
-    Euclidean distance tranform.
-    Based on scipy.ndimage distance_transform_edt().
+    Euclidean distance tranform based on scipy.ndimage distance_transform_edt().
     Compute Euclidean distance tranform (edt) for boolean or integer labeled
     mask array. If boolean, edt is applied over the entire array, whereas if 
     labeled, edt is applied individually for each objects.
     
     Parameters
     ----------
-    arr : 2D or 3D ndarray (bool or uint8, uint16, int32)
-        if boolean, True foreground, False background.
-        if labeled, non-zero integers foreground, 0 background.
+    arr : 2D or 3D ndarray (bool or int)
+        If boolean, True foreground, False background.
+        If labeled, non-zero integers foreground, 0 background.
         
-    reference : str, optional, default="outlines"
-        reference from which edt is computed.
+    reference : str, default="outlines"
+        Reference from which edt is computed.
         - "outlines" : boundaries of bool/labeled objects
         - "centroids" : centroids of bool/labeled objects
         
-    process : str, optional, default="foreground"
-        portion of the input array to be process
+    mode : str, default="foreground"
+        Portion of the input array to be process
         - "both" : consider the all image.
         - "foreground" : consider only foreground pixels.
         - "background" : consider only background pixels.
 
-    normalize : str, optional, default="none"
+    normalize : str, default="none"
         - "none" : no normalization.
         - "global" : 0 to 1 normalization globally over the entire array.
         - "object" : 0 to 1 normalization for each object individually.
         - "object" normalization is only compatible with process "foreground".
                 
     invert : bool
-        invert edt values if normalized
+        Invert edt values if normalized
         
     Returns
     -------  
@@ -80,7 +68,8 @@ def get_edt(
     # Checks ------------------------------------------------------------------
        
     # Parameter : arr
-    Check_data(arr, name="arr", dtype=[int, bool], ndim=[2, 3])
+    Check_parameter(
+        arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=(2, 3))
     if np.all(arr == arr.flat[0]): # Skip if empty 
         return np.zeros_like(arr, dtype="float32") 
     if len(np.unique(arr)) == 2: # Label if binary
@@ -88,20 +77,20 @@ def get_edt(
     
     # Parameter : reference, process, normalize
     Check_parameter(
-        reference, name="reference", ctype=str,
-        valid=["outlines", "centroids"]
+        reference, name="reference", ctype=str, 
+        vvalue=("outlines", "centroids")
         )
     Check_parameter(
-        process, name="process", ctype=str,
-        valid=["foreground", "background", "both"]
+        mode, name="mode", ctype=str,
+        vvalue=("foreground", "background", "both")
         )
     Check_parameter(
         normalize, name="normalize", ctype=str,
-        valid=["none", "global", "object"]
+        vvalue=("none", "global", "object")
         )
     
     # Parameter : compatibility
-    if not process == "foreground" and normalize == "object":
+    if not mode == "foreground" and normalize == "object":
         raise ValueError(
             "'object' normalization is only compatible with process 'foreground'"
             )
@@ -173,20 +162,20 @@ def get_edt(
     
     if reference == "centroids":
         ctd = get_centroids_array(arr)  
-        if normalize == "object" and process == "foreground":
+        if normalize == "object" and mode == "foreground":
             edt = get_centroids_edt_object(arr, ctd)
         else:
             edt = distance_transform_edt(~ctd)
     
-    if process == "foreground": edt[arr == 0] = 0
-    if process == "background": edt[arr != 0] = 0
+    if mode == "foreground": edt[arr == 0] = 0
+    if mode == "background": edt[arr != 0] = 0
     
     if normalize == "global":
         edt = norm_pct(edt, pct_low=0, pct_high=100, mask=arr > 0)
         if invert:
             edt = 1 - edt
     
-    if normalize == "object" and process == "foreground":
+    if normalize == "object" and mode == "foreground":
         for props in regionprops(label(arr, connectivity=1)):
             coords = tuple(props.coords.T)
             edt[coords] /= np.maximum(1, np.max(edt[coords]))
@@ -201,16 +190,14 @@ def get_edt(
 def get_skeletons(arr, parallel=True):
     
     """ 
-    Skeletonize.
-    Based on scipy.ndimage skeletonize().
-
+    Skeletonize based on scipy.ndimage skeletonize().
     Compute skeleton for boolean or integer labelled mask array. If boolean, 
     skeletonize() is applied over the entire array, whereas if labelled, 
     skeletonize() is applied individually for each objects.
     
     Parameters
     ----------
-    arr : 2D or 3D ndarray (bool or uint8, uint16, int32)
+    arr : 2D or 3D ndarray (bool or int)
         Boolean : True foreground, False background.
         Labelled : non-zero integers objects, 0 background.
     
@@ -220,14 +207,15 @@ def get_skeletons(arr, parallel=True):
     Returns
     -------  
     skel : 2D or 3D ndarray (bool)
-        skeleton of the input array.
+        Skeleton of the input array.
         
     """
     
     # Checks ------------------------------------------------------------------
     
     # Parameter : arr
-    Check_data(arr, name="arr", dtype=[int, bool], ndim=[2, 3])
+    Check_parameter(
+        arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=(2, 3))
     if np.all(arr == arr.flat[0]): # Skip if empty 
         return np.zeros_like(arr, dtype=bool) 
     
@@ -253,24 +241,55 @@ def get_skeletons(arr, parallel=True):
 
     return np.max(np.stack(skl), axis=0)
 
-#%% Function: prepare_masks() --------------------------------------------------
+#%% Function: process_masks() -------------------------------------------------
 
-def prepare_masks(data, mask_type="binary"):
-    
-    """ 
-    Prepare masks.
+def process_masks(
+        data, method="binary", 
+        edt_parameters={
+            "reference" : "outlines",
+            "mode"      : "foreground",
+            "normalize" : "object",   
+            }
+        ):
     
     """
+    Process masks using the selected method.
     
+    Parameters
+    ----------
+    data : single or list of 2D or 3D ndarrays (bool or int)
+        Boolean : True foreground, False background.
+        Labelled : non-zero integers objects, 0 background.
+        
+    method : str, default="binary"
+        Select mask type output
+        - "binary" : simple thresholding (arr > 0).
+        - "edt" : object Euclidean Distance Transform, see get_edt().
+        - "outlines" : object outlines.
+        - "interfaces" : object interfaces (contact between objects).
+        - "centroids" : object centroids.
+        - "skeletons" : object skeletons, see get_skeletons().
+        
+    edt_parameters : dict
+        See get_edt()
+    
+    Returns
+    -------      
+    prc : unique or list of 2D or 3D ndarray (bool, int or float)
+        Processed masks output in the format of input data.
+    
+    """
+        
     # Checks ------------------------------------------------------------------
     
     # Parameter : data
-    Check_data(data, name="data", dtype=[int, bool], ndim=[2, 3])
+    Check_parameter(
+        data, name="data", ctype=(np.ndarray, list), dtype=(int, bool), ndim=(2, 3))
         
     # Parameter : mask_type
     Check_parameter(
-        mask_type, name="mask_type", ctype=str,
-        valid=["binary", "edt", "outlines", "interfaces", "centroids", "skeletons"]
+        method, name="method", ctype=str,
+        vvalue=("binary", "edt", "outlines", "interfaces", "centroids", "skeletons")
         )
     
     # Nested function(s) ------------------------------------------------------
@@ -286,43 +305,47 @@ def prepare_masks(data, mask_type="binary"):
             centroids[y, x] = True
         return centroids
     
-    def _prepare_mask(img):
+    def _prepare_mask(arr):
         
-        if mask_type == "binary":
-            prp = img > 0
-        elif mask_type == "edt":
-            prp = get_edt(
-                img, 
-                reference="outlines",
-                process="foreground",
-                normalize="object",                
-                )
-        elif mask_type == "outlines":
-            prp = find_boundaries(img)
-        elif mask_type == "interfaces":
-            prp = lbl_conn(img, conn=2) > 1
-        elif mask_type == "centroids":
-            prp = get_centroids(img)
-        elif mask_type == "skeletons":
-            prp = get_skeletons(img)
+        if method == "binary":
+            prc = arr > 0
+        elif method == "edt":
+            prc = get_edt(arr, **edt_parameters)
+        elif method == "outlines":
+            prc = find_boundaries(arr)
+        elif method == "interfaces":
+            prc = lbl_conn(arr, conn=2) > 1
+        elif method == "centroids":
+            prc = get_centroids(arr)
+        elif method == "skeletons":
+            prc = get_skeletons(arr)
  
-        return prp
+        return prc
     
     # Execute -----------------------------------------------------------------
     
-    if arr.ndim == 3:
+    if isinstance(data, list):
         
-        prp = Parallel(n_jobs=-1)(
-            delayed(_prepare_mask)(img)
-            for img in arr
+        prc = Parallel(n_jobs=-1)(
+            delayed(_prepare_mask)(arr)
+            for arr in data
             )           
-        prp = np.stack(prp)
         
-    elif arr.ndim == 2:
+    elif isinstance(data, np.ndarray):
+    
+        if data.ndim == 3:
+            
+            prc = Parallel(n_jobs=-1)(
+                delayed(_prepare_mask)(arr)
+                for arr in data
+                )           
+            prc = np.stack(prc)
+            
+        elif data.ndim == 2:
+            
+            prc = _prepare_mask(data)
         
-        prp = _prepare_mask(arr)
-        
-    return prp
+    return prc
 
 #%% Execute -------------------------------------------------------------------
 
@@ -338,8 +361,8 @@ if __name__ == "__main__":
     idx = "all"
     # dataset = "em_mito"
     # dataset = "skel_wdisk"
-    dataset = "fluo_tissue"
-    # dataset = "fluo_nuclei_instance"
+    # dataset = "fluo_tissue"
+    dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
     data_path = Path.cwd().parent / "_local" / dataset
     paths = list(data_path.rglob("*msk_trn.tif"))
@@ -366,73 +389,92 @@ if __name__ == "__main__":
     
 #%% get_edt() -----------------------------------------------------------------
     
-    # # Parameters
-    # reference = "outlines"
-    # process = "foreground" 
-    # normalize = "object"   
-    # invert = False
-    
-    # # Initialize
-    # if isinstance(data, list):
-    #     arr = data[0]
-    # else:
-    #     arr = data
-    
-    # t0 = time.time()
-    # print("get_edt() : ", end="", flush=True)
-    
-    # edt = get_edt(
-    #     arr, 
-    #     reference=reference,
-    #     process=process,
-    #     normalize=normalize,
-    #     invert=invert,
-    #     )
-    
-    # t1 = time.time()
-    # print(f"{t1 - t0:.3f}s")
-    
-#%% get_skeletons() -----------------------------------------------------------
-        
-    # # Initialize
-    # if isinstance(data, list):
-    #     arr = data[0]
-    # else:
-    #     arr = data
-    
-    # t0 = time.time()
-    # print("get_skeletons() : ", end="", flush=True)
-    
-    # skl = get_skeletons(arr, parallel=True)
-    
-    # t1 = time.time()
-    # print(f"{t1 - t0:.3f}s")
-    
-#%% prep_mask() ---------------------------------------------------------------
-        
     # Parameters
-    mask_type = "binary"
-    # mask_type = "edt"
-    # mask_type = "outlines"
-    # mask_type = "interfaces"
-    # mask_type = "centroids"
-    # mask_type = "skeletons"
+    reference = "outlines"
+    mode = "foreground" 
+    normalize = "object"   
+    invert = False
     
     # Initialize
+    if isinstance(data, list):
+        arr = data[0]
+    else:
+        arr = data
     
     t0 = time.time()
-    print("prepare_mask() : ", end="", flush=True)
+    print("get_edt() : ", end="", flush=True)
     
-    prp = prepare_masks(data, mask_type=mask_type)
+    edt = get_edt(
+        arr, 
+        reference=reference,
+        mode=mode,
+        normalize=normalize,
+        invert=invert,
+        )
     
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
-
-#%% Display -------------------------------------------------------------------
-
+    
+    # Display
     vwr = napari.Viewer()
     vwr.add_labels(arr, visible=1, opacity=0.5)
-    vwr.add_image(prp, blending="additive", visible=1)
-    vwr.add_image(edt, blending="additive", visible=1)
-    vwr.add_image(skl, blending="additive", visible=1)
+    vwr.add_image(edt, blending="additive", visible=1) 
+    
+#%% get_skeletons() -----------------------------------------------------------
         
+    # Initialize
+    if isinstance(data, list):
+        arr = data[0]
+    else:
+        arr = data
+    
+    t0 = time.time()
+    print("get_skeletons() : ", end="", flush=True)
+    
+    skl = get_skeletons(arr, parallel=True)
+    
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # Display
+    vwr = napari.Viewer()
+    vwr.add_labels(arr, visible=1, opacity=0.5)
+    vwr.add_image(skl, blending="additive", visible=1) 
+    
+#%% process_masks() -----------------------------------------------------------
+        
+    # Parameters
+    # method = "binary"
+    method = "edt"
+    # method = "outlines"
+    # method = "interfaces"
+    # method = "centroids"
+    # method = "skeletons"
+    
+    # Initialize
+    arr = data
+    
+    t0 = time.time()
+    print("process_masks() : ", end="", flush=True)
+    
+    prc = process_masks(
+        data, method=method,
+        edt_parameters={
+            "reference" : "outlines",
+            "mode"      : "foreground",
+            "normalize" : "object",   
+            }
+        )
+    
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # Display
+    vwr = napari.Viewer()
+    if isinstance(arr, list):
+        idx = 1
+        vwr.add_labels(arr[idx], visible=1, opacity=0.5)
+        vwr.add_image(prc[idx], blending="additive", visible=1)
+    else:
+        vwr.add_labels(arr, visible=1, opacity=0.5)
+        vwr.add_image(prc, blending="additive", visible=1)   

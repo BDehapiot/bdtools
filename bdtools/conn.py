@@ -3,13 +3,16 @@
 import numpy as np
 from numba import njit
 
+# bdtools
+from bdtools.check import Check_parameter
+
 # skimage
 from skimage.measure import label
 
 #%% Comments ------------------------------------------------------------------
 
 '''
-- works only for 2D images, maybe implement 3D?
+- works only for 2D images, consider implementing 3D?
 '''
 
 #%% Function: pix_conn() ------------------------------------------------------
@@ -35,6 +38,7 @@ def pix_conn(arr, conn=2):
         Pixel intensity representing number of connected pixels.
     
     """    
+    
     conn1 = np.array(
         [[0, 1, 0],
          [1, 0, 1],
@@ -44,6 +48,10 @@ def pix_conn(arr, conn=2):
         [[1, 1, 1],
          [1, 0, 1],
          [1, 1, 1]])
+    
+    # Checks
+    Check_parameter(
+        arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=2)
         
     # Initialize
     arr = arr > 0
@@ -104,16 +112,16 @@ def lbl_conn(arr, conn=2):
         Pixel intensity representing number of connected labels.
     
     """           
+    
     conn1 = np.array(
         [[0, 1, 0],
          [1, 0, 1],
          [0, 1, 0]])
     
     # Checks
-    if not (np.issubdtype(arr.dtype, np.integer) or
-            np.issubdtype(arr.dtype, np.bool_)):
-        raise TypeError("Input array must be bool or integers labels")
-    
+    Check_parameter(
+        arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=2)
+        
     # Initialize
     msk = arr > 0
     if np.issubdtype(arr.dtype, np.bool_):
@@ -147,52 +155,84 @@ def lbl_conn(arr, conn=2):
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
-    
+        
     # Imports
     import time
     import napari
     from skimage import io
     from pathlib import Path
-
+    
+    # Paths
+    idx = "all"
+    dataset = "skel_wdisk"
+    # dataset = "fluo_tissue"
+    # dataset = "fluo_nuclei_instance"
+    # dataset = "fluo_nuclei_semantic"
+    data_path = Path.cwd().parent / "_local" / dataset
+    paths = list(data_path.rglob("*msk_trn.tif"))
+    
+    # Open data
+    data = []
+    for path in paths:
+        data.append(io.imread(path))
+    if len(data) == 1:
+        data = data[0]
+    if "nuclei_semantic" in dataset:
+        data_1 = label(data == 1)
+        data_2 = label(data == 2)
+        data_3 = label(data == 3) 
+        data_2[data_2 > 0] += np.max(data_1)
+        data_3[data_3 > 0] += np.max(data_2)
+        data = data_1 + data_2 + data_3
+    if "nuclei" in dataset:
+        data = list(data)
+    if isinstance(idx, int):
+        data = data[idx]
+    
+#%% pix_conn() ----------------------------------------------------------------
+    
     # Parameters
     conn = 2
     
-    # Paths
-    # dataset = "wdisk_skel"
-    dataset = "fluo_nuclei_instance"
-    # dataset = "fluo_nuclei_semantic"
-    data_path = Path.cwd().parent / "_local" / dataset
-    if dataset == "wdisk_skel":
-        msk_path = list(data_path.rglob(f"*{dataset}.tif"))[0]
-        msk = io.imread(msk_path).astype(bool)
+    # Initialize
+    if isinstance(data, list):
+        arr = data[0]
     else:
-        msk_path = list(data_path.glob("*msk_trn.tif"))[0]
-        msk = io.imread(msk_path)[0]
-    
-    # -------------------------------------------------------------------------
-    
+        arr = data
+
     t0 = time.time()
     print("pix_conn() : ", end="", flush=True)
     
-    pconn = pix_conn(msk, conn=conn)
+    pconn = pix_conn(arr, conn=conn)
 
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
-    
-    # -------------------------------------------------------------------------
-    
-    t0 = time.time()
-    print("lbl_conn() : ", end="", flush=True)
-    
-    lconn = lbl_conn(msk, conn=conn)
-
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
-    
-    # -------------------------------------------------------------------------
     
     # Display
     vwr = napari.Viewer()
-    vwr.add_labels(msk, visible=1)
-    vwr.add_labels(pconn, visible=0)
-    vwr.add_labels(lconn, visible=0)
+    vwr.add_labels(arr, visible=1)
+    vwr.add_labels(pconn, blending="additive", visible=1)
+    
+#%% lab_conn() ----------------------------------------------------------------
+    
+    # Parameters
+    conn = 2
+    
+    # Initialize
+    if isinstance(data, list):
+        arr = data[0]
+    else:
+        arr = data
+
+    t0 = time.time()
+    print("lbl_conn() : ", end="", flush=True)
+    
+    lconn = lbl_conn(arr, conn=conn)
+
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # Display
+    vwr = napari.Viewer()
+    vwr.add_labels(arr, visible=1)
+    vwr.add_labels(lconn, blending="additive", visible=1)

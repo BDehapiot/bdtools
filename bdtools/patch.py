@@ -193,47 +193,75 @@ if __name__ == "__main__":
     import napari
     from skimage import io
     from pathlib import Path
-
     
     # Paths
+    idx = "all"
     # dataset = "em_mito"
+    # dataset = "skel_wdisk"
+    # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
     dataset = "fluo_nuclei_semantic"
-    local_path = Path.cwd().parent / "_local"
-    img_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
-    msk_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
+    data_path = Path.cwd().parent / "_local" / dataset
+    paths = list(data_path.rglob("*raw_trn.tif"))
+    idx = 0
     
-    # Load images & masks
-    imgs = io.imread(img_path)
-    msks = io.imread(msk_path)
+    # Open data
+    data = []
+    for path in paths:
+        data.append(io.imread(path))
+    if len(data) == 1:
+        data = data[0]
+    if "wdisk" in dataset:
+        data = ~data
+    if "nuclei" in dataset:
+        data = list(data)
+    if isinstance(idx, int):
+        data = data[idx]
         
-    # -------------------------------------------------------------------------
+#%% extract_patches() ---------------------------------------------------------
     
     # Parameters
     size = 256
     overlap = 128 
     
+    # Initialize
+    if isinstance(data, list):
+        arr = data[idx]
+    else:
+        arr = data
+    
     t0 = time.time()
     print("extract patches : ", end="", flush=True)
     
-    patches = extract_patches(imgs, size, overlap)
+    patches = extract_patches(arr, size, overlap)
     
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
-    
-    # -------------------------------------------------------------------------
-    
-    t0 = time.time()
-    print("merge patches : ", end="", flush=True)
-    
-    imgs_merged = merge_patches(patches, imgs.shape, overlap)
-    
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
-    
-    # -------------------------------------------------------------------------
     
     # Display
     viewer = napari.Viewer()
-    # viewer.add_image(np.stack(patches))
-    viewer.add_image(np.stack(imgs_merged))
+    viewer.add_image(np.stack(patches))
+    
+#%% merge_patches() -----------------------------------------------------------
+    
+    # Parameters
+    size = 256
+    overlap = 128 
+    
+    # Initialize
+    if isinstance(data, list):
+        arr = data[idx]
+    else:
+        arr = data
+
+    t0 = time.time()
+    print("merge patches : ", end="", flush=True)
+    
+    arr_merged = merge_patches(patches, arr.shape, overlap)
+    
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+
+    # Display
+    viewer = napari.Viewer()
+    viewer.add_image(np.stack(arr_merged))
