@@ -245,8 +245,8 @@ if __name__ == "__main__":
     
     # Paths
     # dataset = "em_mito"
-    # dataset = "fluo_tissue"
-    dataset = "fluo_nuclei_instance"
+    dataset = "fluo_tissue"
+    # dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
     data_path = Path.cwd().parent.parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
@@ -267,6 +267,7 @@ if __name__ == "__main__":
     
     raw_trn = norm_pct(raw_trn)
     msk_trn = (msk_trn > 0).astype("float32")
+    
     
     # Display -----------------------------------------------------------------
     
