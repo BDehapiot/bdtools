@@ -61,6 +61,12 @@ class Check_parameter:
         if vrange is not None: self.check_vrange()
         if ndim   is not None: self.check_ndim()
                                
+    #     if vrange is not None:
+    # # If it's a collection, check if it has items. 
+    # # If it's just a number, it's automatically "not empty".
+    # if not hasattr(vrange, "__len__") or len(vrange) > 0:
+    #     self.check_vrange()
+        
 #%% Class(Check_parameter) : initialize ---------------------------------------
             
     def initialize(self):
@@ -70,9 +76,13 @@ class Check_parameter:
             self.ctype = tuple([self.ctype])
         if not isinstance(self.dtype, tuple):
             self.dtype = tuple([self.dtype])
+        if not isinstance(self.vvalue, tuple): 
+            self.vvalue = tuple([self.vvalue])
+        if not isinstance(self.vrange, tuple): 
+            self.vrange = tuple([self.vrange])
         if not isinstance(self.ndim, tuple): 
             self.ndim = tuple([self.ndim])
-        
+
         # Expected dtypes
         if self.dtype is not None:
             dtypes = []
@@ -126,9 +136,11 @@ class Check_parameter:
                 )
             
     def check_vrange(self):
-        if not (self.vrange[0] <= self.value <= self.vrange[1]):
+        val = np.asanyarray(self.value)
+        if np.any((val < self.vrange[0]) | (val > self.vrange[1])):
             raise ValueError(
-                f"{self.name!r} out of range [{self.value!r}], "
+                f"{self.name!r} out of range" 
+                f"({np.min(self.value):.3f}, {np.max(self.value):.3f}), "
                 f"expected range {self.vrange!r}"
                 )
             
@@ -166,17 +178,17 @@ if __name__ == "__main__":
         vrange=(0, 10),
         )
     
-    value_2 = np.full((128, 128, 128), 1)
+    value_2 = np.full((128, 128, 128), 2)
     Check_parameter(
         value_2, name="input_2", dtype=int,
-        ndim=(2, 3),
+        ndim=(2, 3), vrange=(0, 1)
         )
     
-    value_3 = []
-    for _ in range(10):
-        value_3.append(np.full((128, 128, 128), 1))
-    Check_parameter(
-        value_3, name="input_3", dtype=int,
-        ndim=(1, 2),
-        )
+    # value_3 = []
+    # for _ in range(10):
+    #     value_3.append(np.full((128, 128, 128), 1))
+    # Check_parameter(
+    #     value_3, name="input_3", dtype=int,
+    #     ndim=(1, 2),
+    #     )
     

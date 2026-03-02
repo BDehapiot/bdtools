@@ -6,9 +6,9 @@ import numpy as np
 # Scipy
 from scipy.ndimage import distance_transform_edt
 
-#%% Function: extract_patches() -----------------------------------------------
+#%% Function: get_patches() -----------------------------------------------
 
-def extract_patches(arr, size, overlap):
+def get_patches(arr, size, overlap):
     
     """ 
     Extract patches from 2D or 3D ndarray.    
@@ -110,10 +110,10 @@ def merge_2d_numba(
 def merge_patches(patches, shape, overlap):
     
     """
-    Reassemble a 2D or 3D ndarray from extract_patches().
+    Reassemble a 2D or 3D ndarray from get_patches().
 
     The shape of the original array and the overlap between patches 
-    used with extract_patches() must be provided to instruct the reassembly 
+    used with get_patches() must be provided to instruct the reassembly 
     process. When merging patches with overlap, priority is given to the 
     central regions of the overlapping patches.
 
@@ -218,7 +218,7 @@ if __name__ == "__main__":
     if isinstance(idx, int):
         data = data[idx]
         
-#%% extract_patches() ---------------------------------------------------------
+#%% get_patches() ---------------------------------------------------------
     
     # Parameters
     size = 256
@@ -233,7 +233,7 @@ if __name__ == "__main__":
     t0 = time.time()
     print("extract patches : ", end="", flush=True)
     
-    patches = extract_patches(arr, size, overlap)
+    patches = get_patches(arr, size, overlap)
     
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
