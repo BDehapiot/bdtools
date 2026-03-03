@@ -135,9 +135,11 @@ class Check_parameter:
                 f"expected {self.vvalue!r}"
                 )
             
-    def check_vrange(self):
+    def check_vrange(self, atol=1e-5):
         val = np.asanyarray(self.value)
-        if np.any((val < self.vrange[0]) | (val > self.vrange[1])):
+        v0 = self.vrange[0] - atol
+        v1 = self.vrange[1] + atol
+        if np.any((val < v0) | (val > v1)):
             raise ValueError(
                 f"{self.name!r} out of range" 
                 f"({np.min(self.value):.3f}, {np.max(self.value):.3f}), "

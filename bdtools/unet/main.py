@@ -1,11 +1,10 @@
 #%% Imports -------------------------------------------------------------------
 
-
+# bdtools
+from bdtools.check import Check_parameter
+from bdtools.unet.prepare import Prepare
 
 #%% Class(UNet) ---------------------------------------------------------------
-
-# Imports
-from bdtools.check import Check_parameter
 
 class UNet:
     
@@ -23,102 +22,16 @@ class UNet:
         self.initialize()
         Prepare(self)
         
-# -----------------------------------------------------------------------------
+#%% Class(UNet) initialize() --------------------------------------------------
 
     def initialize(self):
         
-        # Check input data
+        # Check data
         Check_parameter(
             self.X, name="X", 
             ctype=(np.ndarray, list), dtype=float,
             vrange=(0, 1),
             )
-      
-#%% Class(Prepare) ------------------------------------------------------------
-
-# Imports 
-from bdtools.patch import get_patches
-from bdtools.mask import process_masks
-from bdtools.augment import augment
-
-class Prepare:
-    
-    def __init__(self, unet):
-        self.unet = unet
-        self.X = unet.X
-        self.y = unet.y
-        self.parameters = unet.parameters
-        for key, val in self.parameters.items():
-            if not isinstance(val, dict):
-                setattr(self, key, val)
-        
-        # Run
-        self.prepare_masks()
-        self.prepare_patches()
-        self.prepare_augment()
-        
-# -----------------------------------------------------------------------------
-    
-    def prepare_masks(self):
-        self.y = process_masks(self.y, method=self.mask_method)
-        if isinstance(self.y, list):
-            self.y = [
-                arr.astype("float32") if not np.issubdtype(arr.dtype, np.floating) 
-                else arr for arr in self.y
-                ]
-        if isinstance(self.y, np.ndarray):
-            if not np.issubdtype(self.y.dtype, np.floating):
-                self.y = self.y.astype("float32")
-
-    def prepare_patches(self):
-        if isinstance(self.X, list):
-            self.X_patches, self.y_patches = [], []
-            for arr_X, arr_y in zip(self.X, self.y):
-                X_patches = get_patches(
-                    arr_X, self.patch_size, self.patch_overlap)
-                y_patches = get_patches(
-                    arr_y, self.patch_size, self.patch_overlap)
-                self.X_patches += X_patches
-                self.y_patches += y_patches
-        if isinstance(self.X, np.ndarray):
-            self.X_patches = get_patches(
-                self.X, self.patch_size, self.patch_overlap)
-            self.y_patches = get_patches(
-                self.y, self.patch_size, self.patch_overlap)
-        self.X_patches = np.stack(self.X_patches)
-        self.y_patches = np.stack(self.y_patches)
-
-    def prepare_augment(self):
-        
-        self.X_patches, self.y_patches = augment(
-            self.X_patches, self.y_patches, self.augment_iterations,
-            invert_p  = self.augment_invert_p,
-            gamma_p   = self.augment_gamma_p,
-            gblur_p   = self.augment_gblur_p,
-            noise_p   = self.augment_noise_p,
-            flip_p    = self.augment_flip_p,
-            distord_p = self.augment_distord_p,
-            )
-        
-        Check_parameter(
-            self.X_patches, name="X_patches", dtype=float, vrange=(0, 1))
-        Check_parameter(
-            self.y_patches, name="X_patches", dtype=float, vrange=(0, 1))
-        
-        self.unet.X_patches = self.X_patches
-        self.unet.y_patches = self.y_patches
-        
-    # def augment(
-    #         imgs, msks, iterations,
-    #         invert_p=0.5, 
-    #         gamma_p=0.5,
-    #         gblur_p=0.5,
-    #         noise_p=0.5,
-    #         flip_p=0.5,
-    #         distord_p=0.5,
-    #         ):
-        
-        pass
 
 #%% Execute -------------------------------------------------------------------
 
@@ -188,12 +101,12 @@ if __name__ == "__main__":
         "mask_method"        : "skeletons",
                 
         # Augment
-        "augment_iterations" : 2000,
+        "augment_iterations" : 500,
         "augment_invert_p"   : 0.5,
-        "augment_gamma_p"    : 0.5, 
-        "augment_gblur_p"    : 0.5, 
-        "augment_noise_p"    : 0.5, 
-        "augment_flip_p"     : 0.5, 
+        "augment_gamma_p"    : 0.5,
+        "augment_gblur_p"    : 0.5,
+        "augment_noise_p"    : 0.5,
+        "augment_flip_p"     : 0.5,
         "augment_distord_p"  : 0.5,
         
         # Build

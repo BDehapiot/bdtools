@@ -4,6 +4,9 @@ import numpy as np
 import albumentations as A
 from joblib import Parallel, delayed 
 
+# bdtools
+from bdtools.norm import norm_pct
+
 # skimage
 from skimage.filters import gaussian
 from skimage.exposure import adjust_gamma
@@ -18,6 +21,7 @@ def augment(
         noise_p=0.5,
         flip_p=0.5,
         distord_p=0.5,
+        preserve_range=True,
         ):
     
     """
@@ -163,6 +167,9 @@ def augment(
             outputs = spatial_transforms(image=img, mask=msk)
             img, msk = outputs["image"], outputs["mask"]
         
+        if preserve_range:
+            img = norm_pct(img, pct_low=0.01, pct_high=99.99)
+        
         return img, msk
         
     # Execute -----------------------------------------------------------------
@@ -176,10 +183,10 @@ def augment(
         delayed(_augment)(imgs[i], msks[i])
         for i in idxs
         )
-    
+
     imgs = np.stack([data[0] for data in outputs])
     msks = np.stack([data[1] for data in outputs])
-        
+    
     return imgs, msks
 
 #%% Execute -------------------------------------------------------------------
