@@ -135,16 +135,27 @@ class Check_parameter:
                 f"expected {self.vvalue!r}"
                 )
             
+    # def check_vrange(self, atol=1e-5):
+    #     val = np.asanyarray(self.value)
+    #     v0 = self.vrange[0] - atol
+    #     v1 = self.vrange[1] + atol
+    #     if np.any((val < v0) | (val > v1)):
+    #         raise ValueError(
+    #             f"{self.name!r} out of range" 
+    #             f"({np.min(self.value):.3f}, {np.max(self.value):.3f}), "
+    #             f"expected range {self.vrange!r}"
+    #             )
+            
     def check_vrange(self, atol=1e-5):
-        val = np.asanyarray(self.value)
         v0 = self.vrange[0] - atol
         v1 = self.vrange[1] + atol
-        if np.any((val < v0) | (val > v1)):
+        if any(np.any((arr < v0) | (arr > v1)) for arr in self.value):
+            vmin = min(np.min(arr) for arr in self.value)
+            vmax = max(np.max(arr) for arr in self.value)
             raise ValueError(
-                f"{self.name!r} out of range" 
-                f"({np.min(self.value):.3f}, {np.max(self.value):.3f}), "
+                f"{self.name!r} out of range ({vmin:.3f}, {vmax:.3f}), "
                 f"expected range {self.vrange!r}"
-                )
+                )   
             
     def check_ndim(self):
         ctype = type(self.value) 

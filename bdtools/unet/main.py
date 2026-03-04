@@ -1,18 +1,23 @@
 #%% Imports -------------------------------------------------------------------
 
+from pathlib import Path
+import segmentation_models as sm
+
 # bdtools
 from bdtools.check import Check_parameter
+from bdtools.unet import metrics
 from bdtools.unet.prepare import Prepare
+from bdtools.unet.callbacks import CallBacks
+
+# tensorflow
+from tensorflow.keras.optimizers import Adam
 
 #%% Class(UNet) ---------------------------------------------------------------
 
 class UNet:
     
     def __init__(self, X, y, parameters):
-        
-        # Fetch
-        self.X = X
-        self.y = y
+        self.X, self.y = X, y
         self.parameters = parameters
         for key, val in self.parameters.items():
             if not isinstance(val, dict):
@@ -32,6 +37,71 @@ class UNet:
             ctype=(np.ndarray, list), dtype=float,
             vrange=(0, 1),
             )
+        
+        # Model name
+        if self.root_path is None:
+            self.root_path = Path.cwd()
+        if self.model_name is None:
+            if isinstance(self.X, list):
+                n = len(self.X)
+            elif isinstance(self.X, np.ndarray):
+                n = self.X.shape[0]
+            n_trn = int(n - (n * self.validation_split))
+            self.model_name = (
+                "model_"
+                f"{self.patch_size}_"
+                f"{self.mask_method}_"
+                f"{self.augment_iterations}-{n_trn}"
+                )
+        self.model_path = self.root_path / self.model_name
+        if not self.model_path.exists():
+            self.model_path.mkdir(exist_ok=True)
+        
+#%% Class(UNet) build() -------------------------------------------------------
+
+    def build(self):
+
+        # Build
+        self.model = sm.Unet(
+            self.backbone, 
+            input_shape=(None, None, 1), # Parameter
+            classes=1, # Parameter
+            activation=self.activation,
+            encoder_weights=None,
+            )
+        
+        # Compile
+        self.model.compile(
+            optimizer=Adam(learning_rate=self.learning_rate),
+            loss="binary_crossentropy", # Parameter
+            metrics=[getattr(metrics, self.metric)],
+            )
+        
+#%% Class(UNet) train() -------------------------------------------------------
+
+    def train(self):
+
+        self.build()    
+        self.callbacks = [CallBacks(self)]
+        
+        try:
+        
+            # Train
+            self.history = self.model.fit(
+                x=self.X_trn, y=self.y_trn,
+                validation_data=(self.X_val, self.y_val),
+                batch_size=self.batch_size,
+                epochs=self.epochs,
+                callbacks=self.callbacks,
+                verbose=0,
+                )
+        
+        # Interrupt
+        except KeyboardInterrupt:
+            print("Training interrupted.")
+            self.model.stop_training = True
+            for cb in self.callbacks:
+                cb.on_train_end(logs={})
 
 #%% Execute -------------------------------------------------------------------
 
@@ -64,10 +134,10 @@ if __name__ == "__main__":
     # Load --------------------------------------------------------------------
     
     # Paths
-    # dataset = "em_mito"
+    dataset = "em_mito"
     # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
-    dataset = "fluo_nuclei_semantic"
+    # dataset = "fluo_nuclei_semantic"
     data_path = Path.cwd().parent.parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
     msk_trn_paths = list(data_path.rglob("*msk_trn.tif"))
@@ -92,45 +162,46 @@ if __name__ == "__main__":
 #%% UNet() --------------------------------------------------------------------
     
     parameters = {
-        
-        # Patch
+
+        # Paths
+        "root_path"          : None,
+        "model_name"         : None,
+
+        # Build
+        "backbone"           : "resnet18",
+        "activation"         : "sigmoid",
+            
+        # Train
+        "epochs"             : 128,
+        "batch_size"         : 4,
+        "validation_split"   : 0.2,
+        "metric"             : "soft_dice_coef",
+        "learning_rate"      : 0.001,
+        "patience"           : 64,
+
+        # Prepare
         "patch_size"         : 256,
-        "patch_overlap"      : 0,
-        
-        # Masks
-        "mask_method"        : "skeletons",
+        "patch_overlap"      : 128,
+        "mask_method"        : "binary",
                 
         # Augment
-        "augment_iterations" : 500,
-        "augment_invert_p"   : 0.5,
+        "augment_iterations" : 0,
+        "augment_invert_p"   : 0,
         "augment_gamma_p"    : 0.5,
         "augment_gblur_p"    : 0.5,
         "augment_noise_p"    : 0.5,
         "augment_flip_p"     : 0.5,
         "augment_distord_p"  : 0.5,
-        
-        # Build
-        "root_path"          : None,
-        "model_name"         : None,
-        "backbone"           : "resnet18",
-        "activation"         : "sigmoid",
-            
-        # Train
-        "epochs"             : 300,
-        "batch_size"         : 4,
-        "validation_split"   : 0.2,
-        "metric"             : "soft_dice_coef",
-        "learning_rate"      : 0.001,
-        "patience"           : 100,
 
         }
     
     unet = UNet(raw_trn, msk_trn, parameters)
-    X_patches = unet.X_patches
-    y_patches = unet.y_patches
+    unet.train()
+    # X_patches = unet.X_patches
+    # y_patches = unet.y_patches
     
-    # Display
-    import napari
-    vwr = napari.Viewer()
-    vwr.add_image(np.stack(X_patches))
-    vwr.add_image(np.stack(y_patches))
+    # # Display
+    # import napari
+    # vwr = napari.Viewer()
+    # vwr.add_image(np.stack(X_patches))
+    # vwr.add_image(np.stack(y_patches))

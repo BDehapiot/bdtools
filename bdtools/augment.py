@@ -1,5 +1,8 @@
 #%% Imports -------------------------------------------------------------------
 
+import os
+os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"
+
 import numpy as np
 import albumentations as A
 from joblib import Parallel, delayed 
