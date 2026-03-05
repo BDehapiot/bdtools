@@ -1,5 +1,8 @@
 #%% Imports -------------------------------------------------------------------
 
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  
+
 from pathlib import Path
 import segmentation_models as sm
 
@@ -54,6 +57,7 @@ class UNet:
                 f"{self.augment_iterations}-{n_trn}"
                 )
         self.model_path = self.root_path / self.model_name
+        self.weights_path = self.model_path / "weights.h5"
         if not self.model_path.exists():
             self.model_path.mkdir(exist_ok=True)
         
@@ -76,6 +80,11 @@ class UNet:
             loss="binary_crossentropy", # Parameter
             metrics=[getattr(metrics, self.metric)],
             )
+        
+        # Load weights (optional)
+        if self.weights_path.exists():
+            print("load model weights")
+            self.model.load_weights(self.weights_path)
         
 #%% Class(UNet) train() -------------------------------------------------------
 
@@ -134,10 +143,10 @@ if __name__ == "__main__":
     # Load --------------------------------------------------------------------
     
     # Paths
-    dataset = "em_mito"
+    # dataset = "em_mito"
     # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
-    # dataset = "fluo_nuclei_semantic"
+    dataset = "fluo_nuclei_semantic"
     data_path = Path.cwd().parent.parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
     msk_trn_paths = list(data_path.rglob("*msk_trn.tif"))
@@ -165,7 +174,7 @@ if __name__ == "__main__":
 
         # Paths
         "root_path"          : None,
-        "model_name"         : None,
+        "model_name"         : "model_128_binary_500-80",
 
         # Build
         "backbone"           : "resnet18",
@@ -180,12 +189,12 @@ if __name__ == "__main__":
         "patience"           : 64,
 
         # Prepare
-        "patch_size"         : 256,
-        "patch_overlap"      : 128,
-        "mask_method"        : "binary",
+        "patch_size"         : 128,
+        "patch_overlap"      : 64,
+        "mask_method"        : "interfaces",
                 
         # Augment
-        "augment_iterations" : 0,
+        "augment_iterations" : 500,
         "augment_invert_p"   : 0,
         "augment_gamma_p"    : 0.5,
         "augment_gblur_p"    : 0.5,
