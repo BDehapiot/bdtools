@@ -40,6 +40,10 @@ class UNet:
             ctype=(np.ndarray, list), dtype=float,
             vrange=(0, 1),
             )
+        if self.X[0].ndim == 2:
+            self.input_shape = (None, None, 1)
+        elif self.X[0].ndim == 3:
+            self.input_shape = (None, None, 1)
         
         # Model name
         if self.root_path is None:
@@ -68,7 +72,7 @@ class UNet:
         # Build
         self.model = sm.Unet(
             self.backbone, 
-            input_shape=(None, None, 1), # Parameter
+            input_shape=self.input_shape,
             classes=1, # Parameter
             activation=self.activation,
             encoder_weights=None,
@@ -146,27 +150,28 @@ if __name__ == "__main__":
     # dataset = "em_mito"
     # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
-    dataset = "fluo_nuclei_semantic"
+    # dataset = "fluo_nuclei_semantic"
+    dataset = "sat_roads"
     data_path = Path.cwd().parent.parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
     msk_trn_paths = list(data_path.rglob("*msk_trn.tif"))
-    raw_val_paths = list(data_path.rglob("*raw_val.tif"))
-    msk_val_paths = list(data_path.rglob("*msk_val.tif"))
     
     # Load data
     raw_trn = load_data(raw_trn_paths)
     msk_trn = load_data(msk_trn_paths)
-    raw_val = load_data(raw_val_paths)
-    msk_val = load_data(msk_val_paths)
     if "nuclei_semantic" in dataset:
         msk_trn = prep_mask(msk_trn)
-        msk_val = prep_mask(msk_val)
         
     # Normalization -----------------------------------------------------------
     
     from bdtools.norm import norm_pct
+        
+    if "sat_roads" in dataset:
+        raw_trn = raw_trn.astype("float32") / 255
+    else:
+        raw_trn = norm_pct(
+            raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
     
-    raw_trn = norm_pct(raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
     
 #%% UNet() --------------------------------------------------------------------
     
@@ -205,7 +210,7 @@ if __name__ == "__main__":
         }
     
     unet = UNet(raw_trn, msk_trn, parameters)
-    unet.train()
+    # unet.train()
     # X_patches = unet.X_patches
     # y_patches = unet.y_patches
     
