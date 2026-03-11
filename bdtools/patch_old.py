@@ -8,11 +8,7 @@ from scipy.ndimage import distance_transform_edt
 
 #%% Function: get_patches() -----------------------------------------------
 
-def get_patches(arr, size, overlap, multichannel=False):
-    
-    """
-    UPADTE UPADTE UPADTE UPADTE UPADTE UPADTE UPADTE !!!!
-    """
+def get_patches(arr, size, overlap):
     
     """ 
     Extract patches from 2D or 3D ndarray.    
@@ -43,14 +39,11 @@ def get_patches(arr, size, overlap, multichannel=False):
     if arr.ndim == 2: 
         nS = 1
         nY, nX = arr.shape 
-    if arr.ndim == 3:
-        if multichannel:
-            nY, nX, nC = arr.shape
-        else:
-            nS, nY, nX = arr.shape
+    if arr.ndim == 3: 
+        nS, nY, nX = arr.shape
     if arr.ndim == 4:
         nS, nY, nX, nC = arr.shape
-        
+    
     # Get variables
     y0s = np.arange(0, nY, size - overlap)
     x0s = np.arange(0, nX, size - overlap)
@@ -66,16 +59,9 @@ def get_patches(arr, size, overlap, multichannel=False):
         arr_pad = np.pad(
             arr, ((yPad1, yPad2), (xPad1, xPad2)), mode='reflect') 
     if arr.ndim == 3:
-        if multichannel:
-            arr_pad = np.pad(
-                arr, ((yPad1, yPad2), (xPad1, xPad2), (0, 0)), mode='reflect')
-        else:
-            arr_pad = np.pad(
-                arr, ((0, 0), (yPad1, yPad2), (xPad1, xPad2)), mode='reflect')
-    if arr.ndim == 4:
         arr_pad = np.pad(
-            arr, ((0, 0), (yPad1, yPad2), (xPad1, xPad2), (0, 0)), mode='reflect')
-        
+            arr, ((0, 0), (yPad1, yPad2), (xPad1, xPad2)), mode='reflect')         
+    
     # Extract patches
     patches = []
     if arr.ndim == 2:
@@ -83,20 +69,10 @@ def get_patches(arr, size, overlap, multichannel=False):
             for x0 in x0s:
                 patches.append(arr_pad[y0:y0 + size, x0:x0 + size])
     if arr.ndim == 3:
-        if multichannel:
-            for y0 in y0s:
-                for x0 in x0s:
-                    patches.append(arr_pad[y0:y0 + size, x0:x0 + size, :])
-        else:
-            for t in range(nS):
-                for y0 in y0s:
-                    for x0 in x0s:
-                        patches.append(arr_pad[t, y0:y0 + size, x0:x0 + size])
-    if arr.ndim == 4:
         for t in range(nS):
             for y0 in y0s:
                 for x0 in x0s:
-                    patches.append(arr_pad[t, y0:y0 + size, x0:x0 + size, :])
+                    patches.append(arr_pad[t, y0:y0 + size, x0:x0 + size])
             
     return patches
 
@@ -268,15 +244,12 @@ if __name__ == "__main__":
     # Parameters
     size = 256
     overlap = 128 
-    multichannel = True
     
     # Initialize
     if isinstance(data, list):
         arr = data[idx]
     else:
         arr = data
-        
-    arr = arr[0]
 
     # -------------------------------------------------------------------------
 
@@ -284,11 +257,8 @@ if __name__ == "__main__":
     if arr.ndim == 2: 
         nS = 1
         nY, nX = arr.shape 
-    if arr.ndim == 3:
-        if multichannel:
-            nY, nX, nC = arr.shape
-        else:
-            nS, nY, nX = arr.shape
+    if arr.ndim == 3: 
+        nS, nY, nX = arr.shape
     if arr.ndim == 4:
         nS, nY, nX, nC = arr.shape
         
@@ -307,12 +277,8 @@ if __name__ == "__main__":
         arr_pad = np.pad(
             arr, ((yPad1, yPad2), (xPad1, xPad2)), mode='reflect') 
     if arr.ndim == 3:
-        if multichannel:
-            arr_pad = np.pad(
-                arr, ((yPad1, yPad2), (xPad1, xPad2), (0, 0)), mode='reflect')
-        else:
-            arr_pad = np.pad(
-                arr, ((0, 0), (yPad1, yPad2), (xPad1, xPad2)), mode='reflect')
+        arr_pad = np.pad(
+            arr, ((0, 0), (yPad1, yPad2), (xPad1, xPad2)), mode='reflect')
     if arr.ndim == 4:
         arr_pad = np.pad(
             arr, ((0, 0), (yPad1, yPad2), (xPad1, xPad2), (0, 0)), mode='reflect')
@@ -324,15 +290,10 @@ if __name__ == "__main__":
             for x0 in x0s:
                 patches.append(arr_pad[y0:y0 + size, x0:x0 + size])
     if arr.ndim == 3:
-        if multichannel:
+        for t in range(nS):
             for y0 in y0s:
                 for x0 in x0s:
-                    patches.append(arr_pad[y0:y0 + size, x0:x0 + size, :])
-        else:
-            for t in range(nS):
-                for y0 in y0s:
-                    for x0 in x0s:
-                        patches.append(arr_pad[t, y0:y0 + size, x0:x0 + size])
+                    patches.append(arr_pad[t, y0:y0 + size, x0:x0 + size])
     if arr.ndim == 4:
         for t in range(nS):
             for y0 in y0s:
@@ -342,23 +303,6 @@ if __name__ == "__main__":
     # Display
     viewer = napari.Viewer()
     viewer.add_image(np.stack(patches))
-    
-#%% ---------------------------------------------------------------------------
-
-    # Parameters
-    size = 256
-    overlap = 128 
-    
-    # Initialize
-    if isinstance(data, list):
-        arr = data[idx]
-    else:
-        arr = data
-    
-    # -------------------------------------------------------------------------
-    
-    
-    
     
 #%% get_patches() -------------------------------------------------------------
     

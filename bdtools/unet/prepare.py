@@ -52,14 +52,18 @@ class Prepare:
             self.X_patches, self.y_patches = [], []
             for arr_X, arr_y in zip(self.X, self.y):
                 X_patches = get_patches(
-                    arr_X, self.patch_size, self.patch_overlap)
+                    arr_X, self.patch_size, self.patch_overlap, 
+                    multichannel=self.multichannel
+                    )
                 y_patches = get_patches(
                     arr_y, self.patch_size, self.patch_overlap)
                 self.X_patches += X_patches
                 self.y_patches += y_patches
         if isinstance(self.X, np.ndarray):
             self.X_patches = get_patches(
-                self.X, self.patch_size, self.patch_overlap)
+                self.X, self.patch_size, self.patch_overlap, 
+                multichannel=self.multichannel
+                )
             self.y_patches = get_patches(
                 self.y, self.patch_size, self.patch_overlap)
         self.X_patches = np.stack(self.X_patches)

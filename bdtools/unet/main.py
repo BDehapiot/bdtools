@@ -194,9 +194,10 @@ if __name__ == "__main__":
         "patience"           : 64,
 
         # Prepare
+        "multichannel"       : True,
         "patch_size"         : 128,
         "patch_overlap"      : 64,
-        "mask_method"        : "interfaces",
+        "mask_method"        : "binary",
                 
         # Augment
         "augment_iterations" : 500,
@@ -211,11 +212,11 @@ if __name__ == "__main__":
     
     unet = UNet(raw_trn, msk_trn, parameters)
     # unet.train()
-    # X_patches = unet.X_patches
-    # y_patches = unet.y_patches
+    X_patches = unet.X_patches
+    y_patches = unet.y_patches
     
-    # # Display
-    # import napari
-    # vwr = napari.Viewer()
-    # vwr.add_image(np.stack(X_patches))
-    # vwr.add_image(np.stack(y_patches))
+    # Display
+    import napari
+    vwr = napari.Viewer()
+    vwr.add_image(np.stack(X_patches))
+    vwr.add_image(np.stack(y_patches))
