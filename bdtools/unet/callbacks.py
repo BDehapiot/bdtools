@@ -179,11 +179,13 @@ class CallBacks(Callback):
         
     def predict_examples(self, max_img=50, max_mb=100):
                  
-        # Determine 
-        nI, nY, nX = self.unet.X_val.shape
+        # Determine size
+        nS = self.unet.X_val.shape[0]
+        nY = self.unet.X_val.shape[1]
+        nX = self.unet.X_val.shape[2]
         max_size = ((max_mb * 2**20) / (nY * nX)) / 4 
         max_size = np.floor(max_size).astype(int)
-        size = np.min([max_img, max_size, nI])
+        size = np.min([max_img, max_size, nS])
         
         # Predict
         idxs = np.random.choice(
@@ -194,6 +196,8 @@ class CallBacks(Callback):
         predict_examples = []
         for i, idx in enumerate(idxs):
             img = self.unet.X_val[idx]
+            if self.unet.multichannel:
+                img = np.mean(img, axis=-1)
             gtr = self.unet.y_val[idx]
             prd = prds[i].squeeze()
             acc = np.abs(gtr - prd)

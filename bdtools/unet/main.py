@@ -43,7 +43,7 @@ class UNet:
         if self.X[0].ndim == 2:
             self.input_shape = (None, None, 1)
         elif self.X[0].ndim == 3:
-            self.input_shape = (None, None, 1)
+            self.input_shape = (None, None, self.X[0].shape[-1])
         
         # Model name
         if self.root_path is None:
@@ -173,21 +173,22 @@ if __name__ == "__main__":
             raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
     
     
+    
 #%% UNet() --------------------------------------------------------------------
     
     parameters = {
 
         # Paths
         "root_path"          : None,
-        "model_name"         : "model_128_binary_500-80",
+        "model_name"         : None,
 
         # Build
         "backbone"           : "resnet18",
         "activation"         : "sigmoid",
             
         # Train
-        "epochs"             : 128,
-        "batch_size"         : 4,
+        "epochs"             : 256,
+        "batch_size"         : 16,
         "validation_split"   : 0.2,
         "metric"             : "soft_dice_coef",
         "learning_rate"      : 0.001,
@@ -195,12 +196,12 @@ if __name__ == "__main__":
 
         # Prepare
         "multichannel"       : True,
-        "patch_size"         : 128,
-        "patch_overlap"      : 64,
+        "patch_size"         : 384,
+        "patch_overlap"      : 0,
         "mask_method"        : "binary",
                 
         # Augment
-        "augment_iterations" : 500,
+        "augment_iterations" : 2000,
         "augment_invert_p"   : 0,
         "augment_gamma_p"    : 0.5,
         "augment_gblur_p"    : 0.5,
@@ -211,12 +212,12 @@ if __name__ == "__main__":
         }
     
     unet = UNet(raw_trn, msk_trn, parameters)
-    # unet.train()
-    X_patches = unet.X_patches
-    y_patches = unet.y_patches
+    unet.train()
+    # X_patches = unet.X_patches
+    # y_patches = unet.y_patches
     
-    # Display
-    import napari
-    vwr = napari.Viewer()
-    vwr.add_image(np.stack(X_patches))
-    vwr.add_image(np.stack(y_patches))
+    # # Display
+    # import napari
+    # vwr = napari.Viewer()
+    # vwr.add_image(np.stack(X_patches))
+    # vwr.add_image(np.stack(y_patches))
