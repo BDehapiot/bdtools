@@ -6,7 +6,7 @@ from joblib import Parallel, delayed
 # bdtools
 from bdtools.norm import norm_pct
 from bdtools.conn import lbl_conn
-from bdtools.check import Check_parameter
+from bdtools.check import Check
 
 # skimage
 from skimage.measure import label, regionprops
@@ -68,7 +68,7 @@ def get_edt(
     # Checks ------------------------------------------------------------------
        
     # Parameter : arr
-    Check_parameter(
+    Check(
         arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=(2, 3))
     if np.all(arr == arr.flat[0]): # Skip if empty 
         return np.zeros_like(arr, dtype="float32") 
@@ -76,15 +76,15 @@ def get_edt(
         arr = label(arr)
     
     # Parameter : reference, process, normalize
-    Check_parameter(
+    Check(
         reference, name="reference", ctype=str, 
         vvalue=("outlines", "centroids")
         )
-    Check_parameter(
+    Check(
         mode, name="mode", ctype=str,
         vvalue=("foreground", "background", "both")
         )
-    Check_parameter(
+    Check(
         normalize, name="normalize", ctype=str,
         vvalue=("none", "global", "object")
         )
@@ -214,7 +214,7 @@ def get_skeletons(arr, parallel=True):
     # Checks ------------------------------------------------------------------
     
     # Parameter : arr
-    Check_parameter(
+    Check(
         arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=(2, 3))
     if np.all(arr == arr.flat[0]): # Skip if empty 
         return np.zeros_like(arr, dtype=bool) 
@@ -283,11 +283,11 @@ def process_masks(
     # Checks ------------------------------------------------------------------
     
     # Parameter : data
-    Check_parameter(
+    Check(
         data, name="data", ctype=(np.ndarray, list), dtype=(int, bool), ndim=(2, 3))
         
     # Parameter : mask_type
-    Check_parameter(
+    Check(
         method, name="method", ctype=str,
         vvalue=("binary", "edt", "outlines", "interfaces", "centroids", "skeletons")
         )

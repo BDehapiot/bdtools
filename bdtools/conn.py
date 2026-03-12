@@ -4,7 +4,7 @@ import numpy as np
 from numba import njit
 
 # bdtools
-from bdtools.check import Check_parameter
+from bdtools.check import Check
 
 # skimage
 from skimage.measure import label
@@ -50,8 +50,7 @@ def pix_conn(arr, conn=2):
          [1, 1, 1]])
     
     # Checks
-    Check_parameter(
-        arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=2)
+    Check(arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=2)
         
     # Initialize
     arr = arr > 0
@@ -119,8 +118,7 @@ def lbl_conn(arr, conn=2):
          [0, 1, 0]])
     
     # Checks
-    Check_parameter(
-        arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=2)
+    Check(arr, name="arr", ctype=np.ndarray, dtype=(int, bool), ndim=2)
         
     # Initialize
     msk = arr > 0

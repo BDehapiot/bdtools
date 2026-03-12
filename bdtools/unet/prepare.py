@@ -27,12 +27,12 @@ class Prepare:
             self.augment_data()
         
         # Finalize
+        self.unet.X_patches = self.X_patches
+        self.unet.y_patches = self.y_patches
         self.unet.X_trn = self.X_trn
         self.unet.y_trn = self.y_trn
         self.unet.X_val = self.X_val
         self.unet.y_val = self.y_val
-        self.unet.X_patches = self.X_patches
-        self.unet.y_patches = self.y_patches
     
 #%% Class(Prepare) function(s) ------------------------------------------------
 
@@ -48,12 +48,13 @@ class Prepare:
                 self.y = self.y.astype("float32")
 
     def prepare_patches(self):
+        multichannel = True if self.input_shape[-1] > 1 else False
         if isinstance(self.X, list):
             self.X_patches, self.y_patches = [], []
             for arr_X, arr_y in zip(self.X, self.y):
                 X_patches = get_patches(
                     arr_X, self.patch_size, self.patch_overlap, 
-                    multichannel=self.multichannel
+                    multichannel=multichannel
                     )
                 y_patches = get_patches(
                     arr_y, self.patch_size, self.patch_overlap)
@@ -62,10 +63,11 @@ class Prepare:
         if isinstance(self.X, np.ndarray):
             self.X_patches = get_patches(
                 self.X, self.patch_size, self.patch_overlap, 
-                multichannel=self.multichannel
+                multichannel=multichannel
                 )
-            self.y_patches = get_patches(
-                self.y, self.patch_size, self.patch_overlap)
+            if self.y is not None: 
+                self.y_patches = get_patches(
+                    self.y, self.patch_size, self.patch_overlap)
         self.X_patches = np.stack(self.X_patches)
         self.y_patches = np.stack(self.y_patches)
 

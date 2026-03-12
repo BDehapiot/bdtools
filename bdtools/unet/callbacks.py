@@ -3,7 +3,6 @@
 import time
 import numpy as np
 from skimage import io
-from pathlib import Path
 import matplotlib.pyplot as plt
 
 # Tensorflow
@@ -18,6 +17,12 @@ class CallBacks(Callback):
     def __init__(self, unet):
         super().__init__()
         self.unet = unet
+        self.X_trn, self.y_trn = self.unet.X_trn, self.unet.y_trn
+        self.X_val, self.y_val = self.unet.X_val, self.unet.y_val
+        self.parameters = unet.parameters
+        for key, val in self.parameters.items():
+            if not isinstance(val, dict):
+                setattr(self, key, val)
         
         # Execute
         self.initialize()
@@ -35,7 +40,7 @@ class CallBacks(Callback):
         
         # Checkpoint
         self.checkpoint = ModelCheckpoint(
-            filepath=Path(self.unet.model_path, "weights.h5"),
+            filepath=self.weights_path,
             save_weights_only=True,
             save_best_only=True,
             monitor="val_loss", 
@@ -44,7 +49,7 @@ class CallBacks(Callback):
         
         # Early stopping
         self.early_stopping = EarlyStopping(
-            patience=self.unet.patience, 
+            patience=self.patience, 
             monitor="val_loss",
             mode="min",
             )
@@ -70,8 +75,8 @@ class CallBacks(Callback):
         self.epoch_times.append(np.sum(self.epoch_durations))
         self.trn_losses.append(logs.get("loss"))
         self.val_losses.append(logs.get("val_loss"))
-        self.trn_metrics.append(logs.get(self.unet.metric))
-        self.val_metrics.append(logs.get("val_" + self.unet.metric))
+        self.trn_metrics.append(logs.get(self.metric))
+        self.val_metrics.append(logs.get("val_" + self.metric))
         self.best_epoch = np.argmin(self.val_losses)
         self.best_val_loss = np.min(self.val_losses)
         self.checkpoint.on_epoch_end(epoch, logs)
@@ -90,14 +95,14 @@ class CallBacks(Callback):
         
         # Fetch
         epoch = self.epoch
-        epochs = self.unet.epochs - 1
+        epochs = self.epochs - 1
         trn_loss = self.trn_losses[-1]
         val_loss = self.val_losses[-1]
         best_val_loss = self.best_val_loss
         trn_metric = self.trn_metrics[-1]
         val_metric = self.val_metrics[-1]
         wait = self.early_stopping.wait
-        patience = self.unet.patience
+        patience = self.patience
 
         # Print
         print(
@@ -122,17 +127,17 @@ class CallBacks(Callback):
         best_epoch_time = self.epoch_times[best_epoch]
         best_val_loss = self.best_val_loss
         best_val_metric = self.val_metrics[best_epoch]
-        metric = self.unet.metric
-        model_name = self.unet.model_name
+        metric = self.metric
+        model_name = self.model_name
         
         # Info
         infos = (
             f"input shape      : "
                 f"{'x'.join(str(s) for s in self.unet.X_trn.shape)}\n"
-            f"backbone         : {self.unet.backbone}\n"
-            f"batch size       : {self.unet.batch_size}\n"
-            f"validation_split : {self.unet.validation_split}\n"
-            f"learning rate    : {self.unet.learning_rate}\n"
+            f"backbone         : {self.backbone}\n"
+            f"batch size       : {self.batch_size}\n"
+            f"validation_split : {self.validation_split}\n"
+            f"learning rate    : {self.learning_rate}\n"
             f"best_val_loss    : {best_val_loss:.4f}\n"
             f"best_val_metric  : {best_val_metric:.4f} ({metric})\n"
             )
@@ -172,7 +177,7 @@ class CallBacks(Callback):
         
         # Save    
         plt.tight_layout()
-        plt.savefig(self.unet.model_path / "train_plot.png", format="png")
+        plt.savefig(self.model_path / "train_plot.png", format="png")
         plt.show()
         
 #%% Class(CallBacks) : predict_examples() ------------------------------------- 
@@ -180,25 +185,25 @@ class CallBacks(Callback):
     def predict_examples(self, max_img=50, max_mb=100):
                  
         # Determine size
-        nS = self.unet.X_val.shape[0]
-        nY = self.unet.X_val.shape[1]
-        nX = self.unet.X_val.shape[2]
+        nS = self.X_val.shape[0]
+        nY = self.X_val.shape[1]
+        nX = self.X_val.shape[2]
         max_size = ((max_mb * 2**20) / (nY * nX)) / 4 
         max_size = np.floor(max_size).astype(int)
         size = np.min([max_img, max_size, nS])
         
         # Predict
         idxs = np.random.choice(
-            self.unet.X_val.shape[0], size=size, replace=False)
-        prds = self.model.predict(self.unet.X_val[idxs, ...]).squeeze()
+            self.X_val.shape[0], size=size, replace=False)
+        prds = self.model.predict(self.X_val[idxs, ...]).squeeze()
                 
         # Assemble predict_examples
         predict_examples = []
         for i, idx in enumerate(idxs):
-            img = self.unet.X_val[idx]
-            if self.unet.multichannel:
+            img = self.X_val[idx]
+            if self.input_shape[-1] > 1:
                 img = np.mean(img, axis=-1)
-            gtr = self.unet.y_val[idx]
+            gtr = self.y_val[idx]
             prd = prds[i].squeeze()
             acc = np.abs(gtr - prd)
             predict_examples.append(
@@ -212,6 +217,6 @@ class CallBacks(Callback):
         
         # Save
         io.imsave(
-            self.unet.model_path / "predict_examples.tif",
+            self.model_path / "predict_examples.tif",
             predict_examples, check_contrast=False
             )

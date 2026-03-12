@@ -3,14 +3,16 @@
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  
 
+import pickle
 from pathlib import Path
 import segmentation_models as sm
 
 # bdtools
-from bdtools.check import Check_parameter
+from bdtools.check import Check
 from bdtools.unet import metrics
 from bdtools.unet.prepare import Prepare
 from bdtools.unet.callbacks import CallBacks
+from bdtools.patch import get_patches, merge_patches
 
 # tensorflow
 from tensorflow.keras.optimizers import Adam
@@ -19,56 +21,38 @@ from tensorflow.keras.optimizers import Adam
 
 class UNet:
     
-    def __init__(self, X, y, parameters):
-        self.X, self.y = X, y
+    def __init__(self, parameters=None, model_path=None):
+        self.model_path = model_path
         self.parameters = parameters
-        for key, val in self.parameters.items():
-            if not isinstance(val, dict):
-                setattr(self, key, val)
-                
+        
         # Run
         self.initialize()
-        Prepare(self)
-        
+        self.build()
+
 #%% Class(UNet) initialize() --------------------------------------------------
 
     def initialize(self):
         
-        # Check data
-        Check_parameter(
-            self.X, name="X", 
-            ctype=(np.ndarray, list), dtype=float,
-            vrange=(0, 1),
-            )
-        if self.X[0].ndim == 2:
-            self.input_shape = (None, None, 1)
-        elif self.X[0].ndim == 3:
-            self.input_shape = (None, None, self.X[0].shape[-1])
-        
-        # Model name
-        if self.root_path is None:
-            self.root_path = Path.cwd()
-        if self.model_name is None:
-            if isinstance(self.X, list):
-                n = len(self.X)
-            elif isinstance(self.X, np.ndarray):
-                n = self.X.shape[0]
-            n_trn = int(n - (n * self.validation_split))
-            self.model_name = (
-                "model_"
-                f"{self.patch_size}_"
-                f"{self.mask_method}_"
-                f"{self.augment_iterations}-{n_trn}"
+        # Check inputs
+        if (self.parameters is None) == (self.model_path is None):
+            raise ValueError(
+                "User must either provide 'parameters' or 'model_path', but not both"
                 )
-        self.model_path = self.root_path / self.model_name
-        self.weights_path = self.model_path / "weights.h5"
-        if not self.model_path.exists():
-            self.model_path.mkdir(exist_ok=True)
+                    
+        # Parameters
+        if self.parameters is None:
+            self.params_path = self.model_path / "parameters.pkl"
+            with open(self.params_path, "rb") as file:
+                self.parameters = pickle.load(file)
+                print("load parameters")
+        for key, val in self.parameters.items():
+            if not isinstance(val, dict):
+                setattr(self, key, val)
         
 #%% Class(UNet) build() -------------------------------------------------------
 
     def build(self):
-
+        
         # Build
         self.model = sm.Unet(
             self.backbone, 
@@ -86,15 +70,24 @@ class UNet:
             )
         
         # Load weights (optional)
-        if self.weights_path.exists():
-            print("load model weights")
+        if self.model_path is not None:
+            print(f"load weights from : {self.model_path}")
             self.model.load_weights(self.weights_path)
-        
+                        
 #%% Class(UNet) train() -------------------------------------------------------
 
-    def train(self):
-
-        self.build()    
+    def train(self, X, y):
+        
+        # Initialize
+        self.X, self.y = X, y
+        Check(
+            self.X, name="X", 
+            ctype=(np.ndarray, list), dtype=float,
+            vrange=(0, 1),
+            )
+        self.get_parameters()
+        Prepare(self)
+        
         self.callbacks = [CallBacks(self)]
         
         try:
@@ -116,6 +109,81 @@ class UNet:
             for cb in self.callbacks:
                 cb.on_train_end(logs={})
 
+#%% Class(Unet) predict() -----------------------------------------------------
+
+    def predict(self, X):
+        
+        # Initialize
+        Check(
+            X, name="X", 
+            ctype=(np.ndarray, list), dtype=float,
+            vrange=(0, 1),
+            )
+
+        # Prepare patches
+        multichannel = True if self.input_shape[-1] > 1 else False
+        if isinstance(X, list):
+            prds = []
+            for arr_X in X:
+                X_patches = get_patches(
+                    arr_X, self.patch_size, self.patch_overlap, 
+                    multichannel=multichannel
+                    )
+                X_patches = np.stack(X_patches)
+                prd = self.model.predict(X_patches, verbose=1).squeeze()
+                prd = merge_patches(prd, arr_X.shape, self.patch_overlap)
+                prds.append(prd)
+        if isinstance(X, np.ndarray):
+            X_patches = get_patches(
+                X, self.patch_size, self.patch_overlap, 
+                multichannel=multichannel
+                )
+            X_patches = np.stack(X_patches)
+            prds = self.model.predict(X_patches, verbose=1).squeeze()
+            prds = merge_patches(prds, X.shape, self.patch_overlap)
+                
+        return prds
+        
+#%% Class(UNet) funtion(s) ----------------------------------------------------
+
+    def get_parameters(self):
+        
+        # Model name 
+        if self.model_name is None:
+            if isinstance(self.X, list):
+                n = len(self.X)
+            elif isinstance(self.X, np.ndarray):
+                n = self.X.shape[0]
+            n_trn = int(n - (n * self.validation_split))
+            self.model_name = (
+                "model_"
+                f"{self.patch_size}_"
+                f"{self.mask_method}_"
+                f"{self.augment_iterations}"
+                f"-{n_trn}"
+                )
+            
+        # Paths
+        if self.root_path is None:
+            self.root_path = Path.cwd()
+        self.model_path = self.root_path / self.model_name
+        self.params_path = self.model_path / "parameters.pkl"
+        self.weights_path = self.model_path / "weights.h5"
+        if not self.model_path.exists():
+            self.model_path.mkdir(exist_ok=True)
+            
+        # Append parameters
+        self.parameters["model_name"  ] = self.model_name
+        self.parameters["root_path"   ] = self.root_path
+        self.parameters["model_path"  ] = self.model_path
+        self.parameters["params_path" ] = self.params_path
+        self.parameters["weights_path"] = self.weights_path
+        self.parameters["input_shape" ] = self.input_shape
+        
+        # Save parameters
+        with open(self.params_path, "wb") as file:
+            pickle.dump(self.parameters, file)
+            
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -123,7 +191,6 @@ if __name__ == "__main__":
     # Imports
     import numpy as np
     from skimage import io
-    from pathlib import Path
     from skimage.measure import label
     
     # -------------------------------------------------------------------------
@@ -147,11 +214,11 @@ if __name__ == "__main__":
     # Load --------------------------------------------------------------------
     
     # Paths
-    # dataset = "em_mito"
+    dataset = "em_mito"
     # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
-    dataset = "sat_roads"
+    # dataset = "sat_roads"
     data_path = Path.cwd().parent.parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
     msk_trn_paths = list(data_path.rglob("*msk_trn.tif"))
@@ -172,8 +239,6 @@ if __name__ == "__main__":
         raw_trn = norm_pct(
             raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
     
-    
-    
 #%% UNet() --------------------------------------------------------------------
     
     parameters = {
@@ -183,6 +248,7 @@ if __name__ == "__main__":
         "model_name"         : None,
 
         # Build
+        "input_shape"        : (None, None, 1),
         "backbone"           : "resnet18",
         "activation"         : "sigmoid",
             
@@ -195,13 +261,13 @@ if __name__ == "__main__":
         "patience"           : 64,
 
         # Prepare
-        "multichannel"       : True,
-        "patch_size"         : 384,
-        "patch_overlap"      : 0,
-        "mask_method"        : "binary",
+
+        "patch_size"         : 256,
+        "patch_overlap"      : 128,
+        "mask_method"        : "edt",
                 
         # Augment
-        "augment_iterations" : 2000,
+        "augment_iterations" : 500,
         "augment_invert_p"   : 0,
         "augment_gamma_p"    : 0.5,
         "augment_gblur_p"    : 0.5,
@@ -211,13 +277,24 @@ if __name__ == "__main__":
 
         }
     
-    unet = UNet(raw_trn, msk_trn, parameters)
-    unet.train()
-    # X_patches = unet.X_patches
-    # y_patches = unet.y_patches
+    # Train() -----------------------------------------------------------------
     
-    # # Display
-    # import napari
-    # vwr = napari.Viewer()
-    # vwr.add_image(np.stack(X_patches))
-    # vwr.add_image(np.stack(y_patches))
+    # unet = UNet(parameters=parameters, model_path=None)
+    # unet.train(raw_trn, msk_trn)
+    
+    # Predict() ---------------------------------------------------------------
+    
+    model_path = Path(Path.cwd(), "model_256_edt_500-132")
+    unet = UNet(parameters=None, model_path=model_path)
+    prds = unet.predict(raw_trn)
+    
+    # Display
+    import napari
+    vwr = napari.Viewer()
+    if isinstance(raw_trn, list):
+        idx = 2
+        vwr.add_image(raw_trn[idx])
+        vwr.add_image(prds[idx])
+    else:
+        vwr.add_image(raw_trn)
+        vwr.add_image(prds)

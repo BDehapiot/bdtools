@@ -2,9 +2,9 @@
 
 import numpy as np
 
-#%% Class(Check_parameter) ----------------------------------------------------
+#%% Class(Check) --------------------------------------------------------------
 
-class Check_parameter:
+class Check:
     
     """
     A utility class to validate parameters against specific types, values, 
@@ -180,19 +180,19 @@ class Check_parameter:
 if __name__ == "__main__":
     
     value_0 = "binary"
-    Check_parameter(
+    Check(
         value_0, name="mask_type", ctype=str,
         vvalue=("binary", "edt", "outlines"),
         )    
     
     value_1 = 5
-    Check_parameter(
+    Check(
         value_1, name="thresh", ctype=int,
         vrange=(0, 10),
         )
     
     value_2 = np.full((128, 128, 128), 2)
-    Check_parameter(
+    Check(
         value_2, name="input_2", dtype=int,
         ndim=(2, 3), vrange=(0, 1)
         )
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     # value_3 = []
     # for _ in range(10):
     #     value_3.append(np.full((128, 128, 128), 1))
-    # Check_parameter(
+    # Check(
     #     value_3, name="input_3", dtype=int,
     #     ndim=(1, 2),
     #     )
