@@ -44,7 +44,7 @@ class UNet:
             self.params_path = self.model_path / "parameters.pkl"
             with open(self.params_path, "rb") as file:
                 self.parameters = pickle.load(file)
-                print("load parameters")
+                print(f"({self.model_path.name}) : load parameters ")
         for key, val in self.parameters.items():
             if not isinstance(val, dict):
                 setattr(self, key, val)
@@ -71,7 +71,7 @@ class UNet:
         
         # Load weights (optional)
         if self.model_path is not None:
-            print(f"load weights from : {self.model_path}")
+            print(f"({self.model_path.name}) : load weights ")
             self.model.load_weights(self.weights_path)
                         
 #%% Class(UNet) train() -------------------------------------------------------
@@ -131,7 +131,8 @@ class UNet:
                     )
                 X_patches = np.stack(X_patches)
                 prd = self.model.predict(X_patches, verbose=1).squeeze()
-                prd = merge_patches(prd, arr_X.shape, self.patch_overlap)
+                out_shape = arr_X.shape[:-1] if multichannel else arr_X.shape
+                prd = merge_patches(prd, out_shape, self.patch_overlap)
                 prds.append(prd)
         if isinstance(X, np.ndarray):
             X_patches = get_patches(
@@ -140,7 +141,8 @@ class UNet:
                 )
             X_patches = np.stack(X_patches)
             prds = self.model.predict(X_patches, verbose=1).squeeze()
-            prds = merge_patches(prds, X.shape, self.patch_overlap)
+            out_shape = X.shape[:-1] if multichannel else X.shape
+            prds = merge_patches(prds, out_shape, self.patch_overlap)
                 
         return prds
         
@@ -214,11 +216,11 @@ if __name__ == "__main__":
     # Load --------------------------------------------------------------------
     
     # Paths
-    dataset = "em_mito"
+    # dataset = "em_mito"
     # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
-    # dataset = "sat_roads"
+    dataset = "sat_roads"
     data_path = Path.cwd().parent.parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
     msk_trn_paths = list(data_path.rglob("*msk_trn.tif"))
@@ -229,15 +231,29 @@ if __name__ == "__main__":
     if "nuclei_semantic" in dataset:
         msk_trn = prep_mask(msk_trn)
         
+    # # Display
+    # import napari
+    # vwr = napari.Viewer()
+    # if isinstance(raw_trn, list):
+    #     idx = 2
+    #     vwr.add_image(raw_trn[idx])
+    #     vwr.add_image(msk_trn[idx])
+    # else:
+    #     vwr.add_image(raw_trn)
+    #     vwr.add_image(msk_trn)
+        
+    test = raw_trn[2]
+    
+        
     # Normalization -----------------------------------------------------------
     
-    from bdtools.norm import norm_pct
+    # from bdtools.norm import norm_pct
         
-    if "sat_roads" in dataset:
-        raw_trn = raw_trn.astype("float32") / 255
-    else:
-        raw_trn = norm_pct(
-            raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
+    # if "sat_roads" in dataset:
+    #     raw_trn = raw_trn.astype("float32") / 255
+    # else:
+    #     raw_trn = norm_pct(
+    #         raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
     
 #%% UNet() --------------------------------------------------------------------
     
@@ -261,13 +277,12 @@ if __name__ == "__main__":
         "patience"           : 64,
 
         # Prepare
-
-        "patch_size"         : 256,
-        "patch_overlap"      : 128,
-        "mask_method"        : "edt",
+        "patch_size"         : 128,
+        "patch_overlap"      : 0,
+        "mask_method"        : "binary",
                 
         # Augment
-        "augment_iterations" : 500,
+        "augment_iterations" : 0,
         "augment_invert_p"   : 0,
         "augment_gamma_p"    : 0.5,
         "augment_gblur_p"    : 0.5,
@@ -284,17 +299,17 @@ if __name__ == "__main__":
     
     # Predict() ---------------------------------------------------------------
     
-    model_path = Path(Path.cwd(), "model_256_edt_500-132")
-    unet = UNet(parameters=None, model_path=model_path)
-    prds = unet.predict(raw_trn)
+    # model_path = Path(Path.cwd(), "model_128_binary_0-35")
+    # unet = UNet(parameters=None, model_path=model_path)
+    # prds = unet.predict(raw_trn)
     
-    # Display
-    import napari
-    vwr = napari.Viewer()
-    if isinstance(raw_trn, list):
-        idx = 2
-        vwr.add_image(raw_trn[idx])
-        vwr.add_image(prds[idx])
-    else:
-        vwr.add_image(raw_trn)
-        vwr.add_image(prds)
+    # # Display
+    # import napari
+    # vwr = napari.Viewer()
+    # if isinstance(raw_trn, list):
+    #     idx = 2
+    #     vwr.add_image(raw_trn[idx])
+    #     vwr.add_image(prds[idx])
+    # else:
+    #     vwr.add_image(raw_trn)
+    #     vwr.add_image(prds)
