@@ -6,19 +6,22 @@ import numpy as np
 # Scipy
 from scipy.ndimage import distance_transform_edt
 
-#%% Function: get_patches() -----------------------------------------------
+#%% Comments ------------------------------------------------------------------
 
-def get_patches(arr, size, overlap, multichannel=False):
-    
-    """
-    UPADTE UPADTE UPADTE UPADTE UPADTE UPADTE UPADTE !!!!
-    """
+"""
+Important note : Multichannel is only supported for extract_patches.
+"""
+
+#%% Function: extract_patches() ---------------------------------------------------
+
+def extract_patches(arr, size, overlap, multichannel=False):
     
     """ 
-    Extract patches from 2D or 3D ndarray.    
+    Extract patches from single/multichannel 2D/3D ndarray.    
     
-    For 3D array, patches are extracted from each 2D slice along the first 
-    dimension. If necessary, the input array is padded using 'reflect' 
+    For 3D array, patches are extracted from individual 2D slices defined along
+    the first dimension. For multichannel array, channels must be defined along
+    the last dimension. If necessary, the input array is padded using 'reflect' 
     padding mode.
     
     Parameters
@@ -30,7 +33,10 @@ def get_patches(arr, size, overlap, multichannel=False):
         Size of extracted patches.
         
     overlap : int
-        overlap between patches (Must be between 0 and size - 1).
+        Overlap between patches (Must be between 0 and size - 1).
+    
+    multichannel : bool
+        Define single or multichannel input array.
                 
     Returns
     -------  
@@ -136,10 +142,10 @@ def merge_2d_numba(
 def merge_patches(patches, shape, overlap):
     
     """
-    Reassemble a 2D or 3D ndarray from get_patches().
+    Reassemble a 2D or 3D ndarray from extract_patches().
 
     The shape of the original array and the overlap between patches 
-    used with get_patches() must be provided to instruct the reassembly 
+    used with extract_patches() must be provided to instruct the reassembly 
     process. When merging patches with overlap, priority is given to the 
     central regions of the overlapping patches.
 
@@ -263,50 +269,50 @@ if __name__ == "__main__":
     idx = 0
     data = raw_trn
        
-#%% get_patches() -------------------------------------------------------------
+#%% extract_patches() -------------------------------------------------------------
     
-    # # Parameters
-    # size = 256
-    # overlap = 128 
+    # Parameters
+    size = 256
+    overlap = 128 
     
-    # # Initialize
-    # if isinstance(data, list):
-    #     arr = data[idx]
-    # else:
-    #     arr = data
+    # Initialize
+    if isinstance(data, list):
+        arr = data[idx]
+    else:
+        arr = data
     
-    # t0 = time.time()
-    # print("extract patches : ", end="", flush=True)
+    t0 = time.time()
+    print("extract patches : ", end="", flush=True)
     
-    # patches = get_patches(arr, size, overlap)
+    patches = extract_patches(arr, size, overlap)
     
-    # t1 = time.time()
-    # print(f"{t1 - t0:.3f}s")
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
     
-    # # Display
-    # viewer = napari.Viewer()
-    # viewer.add_image(np.stack(patches))
+    # Display
+    viewer = napari.Viewer()
+    viewer.add_image(np.stack(patches))
     
 #%% merge_patches() -----------------------------------------------------------
     
-    # # Parameters
-    # size = 256
-    # overlap = 128 
+    # Parameters
+    size = 256
+    overlap = 128 
     
-    # # Initialize
-    # if isinstance(data, list):
-    #     arr = data[idx]
-    # else:
-    #     arr = data
+    # Initialize
+    if isinstance(data, list):
+        arr = data[idx]
+    else:
+        arr = data
 
-    # t0 = time.time()
-    # print("merge patches : ", end="", flush=True)
+    t0 = time.time()
+    print("merge patches : ", end="", flush=True)
     
-    # arr_merged = merge_patches(patches, arr.shape, overlap)
+    arr_merged = merge_patches(patches, arr.shape, overlap)
     
-    # t1 = time.time()
-    # print(f"{t1 - t0:.3f}s")
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
 
-    # # Display
-    # viewer = napari.Viewer()
-    # viewer.add_image(np.stack(arr_merged))
+    # Display
+    viewer = napari.Viewer()
+    viewer.add_image(np.stack(arr_merged))
