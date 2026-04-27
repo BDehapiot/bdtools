@@ -61,14 +61,17 @@ class UNet:
             
             # Default model name (if not provided)
             if self.parameters["model_name"] is None:
-                n = self.X_trn.shape[0]
+                if isinstance(self.X, list):
+                    n = len(self.X)
+                elif isinstance(self.X, np.ndarray):
+                    n = self.X.shape[0]
                 n_trn = int(n - (n * self.validation_split))
                 self.model_name = (
                     "model_"
                     f"{self.patch_size}_"
                     f"{self.mask_method}_"
-                    f"{n_trn}-"
                     f"{self.augment_iterations}"
+                    f"-{n_trn}"
                     )
                 
             if self.root_path is None:
@@ -120,10 +123,9 @@ class UNet:
             ctype=(np.ndarray, list), dtype=float,
             vrange=(0, 1),
             )
-        Prepare(self)
-        print(self.X.shape[0])
         self.initialize_train()
         self.build()
+        Prepare(self)
         
         # Callbacks
         self.callbacks = [CallBacks(self)]
@@ -280,7 +282,7 @@ if __name__ == "__main__":
 
         # Paths
         "root_path"          : None,
-        "model_name"         : None,
+        "model_name"         : "model_128_binary_0-80",
 
         # Build
         "input_shape"        : (None, None, 3),
@@ -301,7 +303,7 @@ if __name__ == "__main__":
         "mask_method"        : "binary",
                 
         # Augment
-        "augment_iterations" : None,
+        "augment_iterations" : 0,
         "augment_invert_p"   : 0,
         "augment_gamma_p"    : 0.5,
         "augment_gblur_p"    : 0.5,

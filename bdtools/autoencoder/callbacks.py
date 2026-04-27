@@ -14,12 +14,12 @@ from tensorflow.keras.callbacks import (
 
 class CallBacks(Callback):
     
-    def __init__(self, unet):
+    def __init__(self, autoencoder):
         super().__init__()
-        self.unet = unet
-        self.X_trn, self.y_trn = self.unet.X_trn, self.unet.y_trn
-        self.X_val, self.y_val = self.unet.X_val, self.unet.y_val
-        self.parameters = unet.parameters
+        self.autoencoder = autoencoder
+        self.X_trn = self.autoencoder.X_trn
+        self.X_val = self.autoencoder.X_val
+        self.parameters = autoencoder.parameters
         for key, val in self.parameters.items():
             if not isinstance(val, dict):
                 setattr(self, key, val)
@@ -40,7 +40,7 @@ class CallBacks(Callback):
         
         # Checkpoint
         self.checkpoint = ModelCheckpoint(
-            filepath=self.unet.model_path / "weights.h5",
+            filepath=self.autoencoder.model_path / "weights.keras",
             save_weights_only=True,
             save_best_only=True,
             monitor="val_loss", 
@@ -87,7 +87,7 @@ class CallBacks(Callback):
         self.checkpoint.on_train_end(logs)
         self.early_stopping.on_train_end(logs)
         self.plot_training()
-        self.predict_examples()
+        # self.predict_examples()
         
 #%% Class(CallBacks) : print_log() --------------------------------------------    
         
@@ -133,8 +133,8 @@ class CallBacks(Callback):
         # Info
         infos = (
             f"input shape      : "
-                f"{'x'.join(str(s) for s in self.unet.X_trn.shape)}\n"
-            f"backbone         : {self.backbone}\n"
+                f"{'x'.join(str(s) for s in self.autoencoder.X_trn.shape)}\n"
+            f"filters          : {self.filters}\n"
             f"batch size       : {self.batch_size}\n"
             f"validation_split : {self.validation_split}\n"
             f"learning rate    : {self.learning_rate}\n"
@@ -153,8 +153,10 @@ class CallBacks(Callback):
             size=10, color="k",
             transform=axis.transAxes, ha="center", va="center",
             )
+        y_min, y_max = axis.get_ylim()
+        bvl_position = (best_val_loss - y_min) / (y_max - y_min)
         axis.text(
-            1.025, best_val_loss, f"{best_val_loss:.4f}", 
+            1.025, bvl_position, f"{best_val_loss:.4f}", 
             size=10, color="k",
             transform=axis.transAxes, ha="left", va="center",
             )
@@ -167,7 +169,7 @@ class CallBacks(Callback):
         
         axis.set_title(model_name, pad=20)
         axis.set_xlim(0, epochs)
-        axis.set_ylim(0, 1)
+        # axis.set_ylim(0, 1)
         axis.set_xlabel("epochs")
         axis.set_ylabel("loss")
         axis.legend(
@@ -177,7 +179,7 @@ class CallBacks(Callback):
         
         # Save    
         plt.tight_layout()
-        plt.savefig(self.unet.model_path / "train_plot.png", format="png")
+        plt.savefig(self.autoencoder.model_path / "train_plot.png", format="png")
         plt.show()
         
 #%% Class(CallBacks) : predict_examples() ------------------------------------- 
@@ -188,35 +190,42 @@ class CallBacks(Callback):
         nS = self.X_val.shape[0]
         nY = self.X_val.shape[1]
         nX = self.X_val.shape[2]
-        max_size = ((max_mb * 2 ** 20) / (nY * nX)) / 4 
+        if len(self.autoencoder.input_shape) == 4:
+            nC = self.X_val.shape[3]
+        elif len(self.autoencoder.input_shape) == 3:
+            nC = 1
+            
+        max_size = (((max_mb * 2 ** 20) / (nY * nX)) / 4 ) * nC
         max_size = np.floor(max_size).astype(int)
         size = np.min([max_img, max_size, nS])
         
-        # Predict
-        idxs = np.random.choice(
-            self.X_val.shape[0], size=size, replace=False)
-        prds = self.model.predict(self.X_val[idxs, ...]).squeeze()
-                
-        # Assemble predict_examples
-        predict_examples = []
-        for i, idx in enumerate(idxs):
-            img = self.X_val[idx]
-            if self.input_shape[-1] > 1:
-                img = np.mean(img, axis=-1)
-            gtr = self.y_val[idx]
-            prd = prds[i].squeeze()
-            acc = np.abs(gtr - prd)
-            predict_examples.append(
-                np.hstack((img, gtr, prd, acc))
-                )
-        predict_examples = np.stack(predict_examples)  
-        for i in range(3):
-            width = prds[i].squeeze().shape[1]
-            predict_examples[:, :, width * (i + 1)] = 1
-        predict_examples = (predict_examples * 255).astype("uint8")
+        print(size)
         
-        # Save
-        io.imsave(
-            self.unet.model_path / "predict_examples.tif",
-            predict_examples, check_contrast=False
-            )
+        # # Predict
+        # idxs = np.random.choice(
+        #     self.X_val.shape[0], size=size, replace=False)
+        # prds = self.model.predict(self.X_val[idxs, ...]).squeeze()
+                
+    #     # Assemble predict_examples
+    #     predict_examples = []
+    #     for i, idx in enumerate(idxs):
+    #         img = self.X_val[idx]
+    #         if self.input_shape[-1] > 1:
+    #             img = np.mean(img, axis=-1)
+    #         gtr = self.y_val[idx]
+    #         prd = prds[i].squeeze()
+    #         acc = np.abs(gtr - prd)
+    #         predict_examples.append(
+    #             np.hstack((img, gtr, prd, acc))
+    #             )
+    #     predict_examples = np.stack(predict_examples)  
+    #     for i in range(3):
+    #         width = prds[i].squeeze().shape[1]
+    #         predict_examples[:, :, width * (i + 1)] = 1
+    #     predict_examples = (predict_examples * 255).astype("uint8")
+        
+    #     # Save
+    #     io.imsave(
+    #         self.autoencoder.model_path / "predict_examples.tif",
+    #         predict_examples, check_contrast=False
+    #         )

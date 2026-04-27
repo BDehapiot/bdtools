@@ -23,10 +23,12 @@ class Prepare:
         self.prepare_masks()
         self.prepare_patches()
         self.split_data()
-        if self.augment_iterations is not None:
+        if self.augment_iterations > 0:
             self.augment_data()
         
-        # Pass data to model class
+        # Finalize
+        self.unet.X_patches = self.X_patches
+        self.unet.y_patches = self.y_patches
         self.unet.X_trn = self.X_trn
         self.unet.y_trn = self.y_trn
         self.unet.X_val = self.X_val
@@ -67,17 +69,17 @@ class Prepare:
             if self.y is not None: 
                 self.y_patches = extract_patches(
                     self.y, self.patch_size, self.patch_overlap)
-        self.X = np.stack(self.X_patches)
-        self.y = np.stack(self.y_patches)
+        self.X_patches = np.stack(self.X_patches)
+        self.y_patches = np.stack(self.y_patches)
 
     def split_data(self):
-        n_total = self.X.shape[0]
+        n_total = self.X_patches.shape[0]
         n_val = int(n_total * self.validation_split)
         idx = np.random.permutation(np.arange(0, n_total))
-        self.X_trn = self.X[idx[n_val:]] 
-        self.y_trn = self.y[idx[n_val:]]
-        self.X_val = self.X[idx[:n_val]]
-        self.y_val = self.y[idx[:n_val]]
+        self.X_trn = self.X_patches[idx[n_val:]] 
+        self.y_trn = self.y_patches[idx[n_val:]]
+        self.X_val = self.X_patches[idx[:n_val]]
+        self.y_val = self.y_patches[idx[:n_val]]
 
     def augment_data(self):
         self.X_trn, self.y_trn = augment(

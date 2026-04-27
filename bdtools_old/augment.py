@@ -103,8 +103,6 @@ def augment(
     
     def _gamma(img, gamma=1.0):
         img_mean = np.mean(img)
-        if img_mean == 0:
-            return img
         img = adjust_gamma(img, gamma=gamma)
         img = img * (img_mean / np.mean(img))
         return img
@@ -183,7 +181,7 @@ def augment(
     imgs = imgs.astype("float32")
     idxs = np.random.choice(
         np.arange(0, imgs.shape[0]), size=iterations)
-
+    
     outputs = Parallel(n_jobs=-1, backend="threading")(
         delayed(_augment)(imgs[i], msks[i])
         for i in idxs
@@ -201,114 +199,57 @@ if __name__ == "__main__":
     # Imports
     import time
     import napari
-    import numpy as np
     from skimage import io
     from pathlib import Path
-    from skimage.measure import label
-    from bdtools.mask import process_masks
-    
-    # -------------------------------------------------------------------------
-    
-    def load_data(paths):
-        data = []
-        for path in paths:
-            data.append(io.imread(path))
-        if len(data) == 1:
-            data = np.stack(data).squeeze()
-        return data
-    
-    def prep_mask(msk):
-        msk_1 = label(msk == 1)
-        msk_2 = label(msk == 2)
-        msk_3 = label(msk == 3)
-        msk_2[msk_2 > 0] += np.max(msk_1)
-        msk_3[msk_3 > 0] += np.max(msk_2)
-        return msk_1 + msk_2 + msk_3
-    
-    # Load --------------------------------------------------------------------
+    from bdtools.models import preprocess
+
+    # Parameters
+    dataset = "em_mito"
+    # dataset = "fluo_nuclei"
+    iterations = 5000 # n of augmented iterations 
+    patch_size = 256
     
     # Paths
+    local_path = Path.cwd().parent.parent / "_local"
+    X_path = local_path / f"{dataset}" / f"{dataset}_trn.tif"
+    y_path = local_path / f"{dataset}" / f"{dataset}_msk_trn.tif"
     
-    # dataset = "em_mito"
-    # dataset = "fluo_tissue"
-    dataset = "fluo_nuclei_instance"
-    # dataset = "fluo_nuclei_semantic"
-    # dataset = "sat_roads"
-    
-    data_path = Path.cwd().parent / "_local" / dataset
-    raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
-    msk_trn_paths = list(data_path.rglob("*msk_trn.tif"))
-    
-    # Load data
-    raw_trn = load_data(raw_trn_paths)
-    msk_trn = load_data(msk_trn_paths)
-    if "nuclei_semantic" in dataset:
-        msk_trn = prep_mask(msk_trn)
-        
-    # # Display
-    # import napari
-    # vwr = napari.Viewer()
-    # if isinstance(raw_trn, list):
-    #     idx = 2
-    #     vwr.add_image(raw_trn[idx])
-    #     vwr.add_image(msk_trn[idx])
-    # else:
-    #     vwr.add_image(raw_trn)
-    #     vwr.add_image(msk_trn)
-        
-    # Normalization -----------------------------------------------------------
-    
-    # from bdtools.norm import norm_pct
-        
-    # if "sat_roads" in dataset:
-    #     raw_trn = raw_trn.astype("float32") / 255
-    # else:
-    #     raw_trn = norm_pct(
-    #         raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
-      
-#%% augment() -----------------------------------------------------------------
-    
-    # Parameters
-    mask_method = "binary"
-    iterations = 500
-    invert_p   = 0
-    gamma_p    = 0.5
-    gblur_p    = 0.5
-    noise_p    = 0.5
-    flip_p     = 0.5
-    distord_p  = 0.5
-           
-    # prepare_masks()
-    print("prepare_masks() : ", end="", flush=True)
+    # Load images & masks
+    X = io.imread(X_path)
+    y = io.imread(y_path)
+       
+    # Preprocess
+    print("preprocess : ", end="", flush=True)
     t0 = time.time()
-    
-    msk_trn = process_masks(msk_trn, method=mask_method)
-    
+    X, y = preprocess(
+        X, msks=y, 
+        img_norm="image",
+        patch_size=patch_size,
+        patch_overlap=0,
+        )
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
         
-    # augment()
+    # Augment tests
     print("augment : ", end="", flush=True)
     t0 = time.time()
-    
-    raw_trn_aug, msk_trn_aug = augment(
-        raw_trn, msk_trn, iterations,
-        invert_p=invert_p, 
-        gamma_p=gamma_p, 
-        gblur_p=gblur_p, 
-        noise_p=noise_p, 
-        flip_p=flip_p, 
-        distord_p=distord_p,
+    aug_X, aug_y = augment(
+        X, y, iterations,
+        invert_p=0.5, 
+        gamma_p=0.0, 
+        gblur_p=0.0, 
+        noise_p=0.5, 
+        flip_p=0.0, 
+        distord_p=0.0
         )
-    
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
         
-    # # Display
-    # viewer = napari.Viewer()
-    # contrast_limits = [0, 1]
-    # viewer.add_image(aug_X, contrast_limits=contrast_limits)
-    # viewer.add_labels(aug_y.astype("uint8"))
+    # Display
+    viewer = napari.Viewer()
+    contrast_limits = [0, 1]
+    viewer.add_image(aug_X, contrast_limits=contrast_limits)
+    viewer.add_labels(aug_y.astype("uint8"))
     
-    # print(np.min(aug_X))
-    # print(np.max(aug_X))
+    print(np.min(aug_X))
+    print(np.max(aug_X))

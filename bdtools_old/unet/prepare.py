@@ -3,7 +3,7 @@
 import numpy as np
 
 # bdtools
-from bdtools.patch import extract_patches
+from bdtools.patch import get_patches
 from bdtools.mask import process_masks
 from bdtools.augment import augment
 
@@ -23,10 +23,12 @@ class Prepare:
         self.prepare_masks()
         self.prepare_patches()
         self.split_data()
-        if self.augment_iterations is not None:
+        if self.augment_iterations > 0:
             self.augment_data()
         
-        # Pass data to model class
+        # Finalize
+        self.unet.X_patches = self.X_patches
+        self.unet.y_patches = self.y_patches
         self.unet.X_trn = self.X_trn
         self.unet.y_trn = self.y_trn
         self.unet.X_val = self.X_val
@@ -38,8 +40,7 @@ class Prepare:
         self.y = process_masks(self.y, method=self.mask_method)
         if isinstance(self.y, list):
             self.y = [
-                arr.astype("float32") 
-                if not np.issubdtype(arr.dtype, np.floating) 
+                arr.astype("float32") if not np.issubdtype(arr.dtype, np.floating) 
                 else arr for arr in self.y
                 ]
         if isinstance(self.y, np.ndarray):
@@ -51,33 +52,33 @@ class Prepare:
         if isinstance(self.X, list):
             self.X_patches, self.y_patches = [], []
             for arr_X, arr_y in zip(self.X, self.y):
-                X_patches = extract_patches(
+                X_patches = get_patches(
                     arr_X, self.patch_size, self.patch_overlap, 
                     multichannel=multichannel
                     )
-                y_patches = extract_patches(
+                y_patches = get_patches(
                     arr_y, self.patch_size, self.patch_overlap)
                 self.X_patches += X_patches
                 self.y_patches += y_patches
         if isinstance(self.X, np.ndarray):
-            self.X_patches = extract_patches(
+            self.X_patches = get_patches(
                 self.X, self.patch_size, self.patch_overlap, 
                 multichannel=multichannel
                 )
             if self.y is not None: 
-                self.y_patches = extract_patches(
+                self.y_patches = get_patches(
                     self.y, self.patch_size, self.patch_overlap)
-        self.X = np.stack(self.X_patches)
-        self.y = np.stack(self.y_patches)
+        self.X_patches = np.stack(self.X_patches)
+        self.y_patches = np.stack(self.y_patches)
 
     def split_data(self):
-        n_total = self.X.shape[0]
+        n_total = self.X_patches.shape[0]
         n_val = int(n_total * self.validation_split)
         idx = np.random.permutation(np.arange(0, n_total))
-        self.X_trn = self.X[idx[n_val:]] 
-        self.y_trn = self.y[idx[n_val:]]
-        self.X_val = self.X[idx[:n_val]]
-        self.y_val = self.y[idx[:n_val]]
+        self.X_trn = self.X_patches[idx[n_val:]] 
+        self.y_trn = self.y_patches[idx[n_val:]]
+        self.X_val = self.X_patches[idx[:n_val]]
+        self.y_val = self.y_patches[idx[:n_val]]
 
     def augment_data(self):
         self.X_trn, self.y_trn = augment(
