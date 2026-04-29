@@ -21,8 +21,8 @@ class CallBacks(Callback):
         self.X_val, self.y_val = self.unet.X_val, self.unet.y_val
         self.parameters = unet.parameters
         for key, val in self.parameters.items():
-            if not isinstance(val, dict):
-                setattr(self, key, val)
+            # if not isinstance(val, dict):
+            setattr(self, key, val)
         
         # Execute
         self.initialize()

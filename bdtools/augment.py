@@ -17,13 +17,15 @@ from skimage.exposure import adjust_gamma
 #%% Function : augment() ------------------------------------------------------
 
 def augment(
-        imgs, msks, iterations,
-        invert_p=0.5, 
+        imgs, 
+        iterations=100,
+        msks=None,
+        params=None,
         gamma_p=0.5,
         gblur_p=0.5,
         noise_p=0.5,
         flip_p=0.5,
-        distord_p=0.5,
+        distort_p=0.5,
         preserve_range=True,
         ):
     
@@ -36,7 +38,7 @@ def augment(
         - apply gaussian blur (image only) 
         - add noise (image only) 
         - flip (image & mask)
-        - grid distord (image & mask)
+        - grid distort (image & mask)
     
     If required, image transformations are applied to their correponding masks.
     Transformation probabilities can be set with function arguments.
@@ -46,16 +48,17 @@ def augment(
 
     Parameters
     ----------
-    imgs : 3D, 4D ndarray (float)
+    imgs : 3D, 4D ndarray (int, float)
         Input image(s).
         
-    msks : 3D ndarray (float) 
+    msks (optional) : 3D ndarray (float) 
         Input corresponding mask(s).
+        Pass None to only transform images without masks.
         
     iterations : int
         The number of augmented samples to generate.
     
-    gamma_p, gblur_p, noise_p, flip_p, distord_p : float (0 to 1) 
+    gamma_p, gblur_p, noise_p, flip_p, distort_p : float (0 to 1) 
         Probability to apply the transformation.
     
     Returns
@@ -63,39 +66,41 @@ def augment(
     imgs : 3D, 4D ndarray (float)
         Augmented image(s).
         
-    msks : 3D ndarray (float) 
+    msks (optional) : 3D ndarray (float) 
         Augmented corresponding mask(s).
     
     """
     
     # Parameters --------------------------------------------------------------
     
-    params = {
-               
-        # Gamma
-        "gamma_low"          : 0.75,
-        "gamma_high"         : 1.25,
-        "gamma_chn"          : "independent",
+    if params is None:
         
-        # Gaussian blur
-        "gblur_sigma_low"    : 1,
-        "gblur_sigma_high"   : 3,
-        "gblur_chn"          : "shared",
-        
-        # Noise
-        "noise_gain_low"     : 20,
-        "noise_gain_high"    : 50,
-        "noise_std_low"      : 2,
-        "noise_std_high"     : 4,
-        "noise_chn"          : "independent",
-        
-        # Grid distort
-        "distort_steps_low"  : 1,
-        "distort_steps_high" : 10,
-        "distort_limit_low"  : 0.1,
-        "distort_limit_high" : 0.5,
-        
-        }
+        params = {
+                   
+            # Gamma
+            "gamma_low"          : 0.75,
+            "gamma_high"         : 1.25,
+            "gamma_chn"          : "independent",
+            
+            # Gaussian blur
+            "gblur_sigma_low"    : 1,
+            "gblur_sigma_high"   : 3,
+            "gblur_chn"          : "shared",
+            
+            # Noise
+            "noise_gain_low"     : 30,
+            "noise_gain_high"    : 60,
+            "noise_std_low"      : 3,
+            "noise_std_high"     : 6,
+            "noise_chn"          : "independent",
+            
+            # Grid distort
+            "distort_steps_low"  : 1,
+            "distort_steps_high" : 10,
+            "distort_limit_low"  : 0.1,
+            "distort_limit_high" : 0.5,
+            
+            }
     
     # Nested function : _gamma() ----------------------------------------------
         
@@ -172,14 +177,14 @@ def augment(
                 std = np.random.randint(s0, s1, size=nC)
             elif params["noise_chn"] == "shared":
                 gain = np.repeat(np.random.uniform(g0, g1), nC)
-                std = np.repeat(np.random.randin(s0, s1), nC)
+                std = np.repeat(np.random.randint(s0, s1), nC)
                 
             for c in range(nC):
                 chn = img[..., c]
                 chn_std = np.std(chn)
-                # chn = np.random.poisson(chn * gain) / gain
+                chn = np.random.poisson(chn * gain[c]) / gain[c]
                 chn += np.random.normal(
-                    loc=0.0, scale=chn_std / std, size=chn.shape)
+                    loc=0.0, scale=chn_std / std[c], size=chn.shape)
                 img[..., c] = chn
                 
         elif img.ndim == 2:
@@ -187,7 +192,7 @@ def augment(
             gain = np.random.uniform(g0, g1)
             std = np.random.randint(s0, s1)
             img_std = np.std(img)
-            # img = np.random.poisson(img * gain) / gain
+            img = np.random.poisson(img * gain) / gain
             img += np.random.normal(
                 loc=0.0, scale=img_std / std, size=img.shape)
             
@@ -196,25 +201,28 @@ def augment(
     # Nested function : _flip() -----------------------------------------------
     
     def _flip(img, msk):
-        
+
+        if np.random.rand() < 0.5:
+            img = np.flip(img, axis=0)
+            if msk is not None : 
+                msk = np.flip(msk, axis=0)
         if np.random.rand() < 0.5:
             img = np.flip(img, axis=1)
-            msk = np.flip(msk, axis=1)
-        if np.random.rand() < 0.5:
-            img = np.flip(img, axis=2)
-            msk = np.flip(msk, axis=2)
+            if msk is not None : 
+                msk = np.flip(msk, axis=1)
         
         if img.shape[0] == img.shape[1]:
             if np.random.rand() < 0.5:
                 k = np.random.choice([-1, 1])
-                img = np.rot90(img, k=k, axes=(1, 2))
-                msk = np.rot90(msk, k=k, axes=(1, 2))
+                img = np.rot90(img, k=k, axes=(0, 1))
+                if msk is not None : 
+                    msk = np.rot90(msk, k=k, axes=(0, 1))
         
         return img, msk
     
-    # Nested function : _distord() --------------------------------------------
+    # Nested function : _distort() --------------------------------------------
     
-    def _distord(img, msk):
+    def _distort(img, msk):
         
         s0 = params["distort_steps_low" ]
         s1 = params["distort_steps_high"]
@@ -225,17 +233,22 @@ def augment(
         limit = np.random.uniform(l0, l1)
         spatial_transforms = A.Compose([
             A.GridDistortion(num_steps=steps, distort_limit=limit, p=1)])
+        if msk is not None:
+            outputs = spatial_transforms(image=img, mask=msk)
+            img, msk = outputs["image"], outputs["mask"]
+        else:
+            outputs = spatial_transforms(image=img)
+            img, msk = outputs["image"], None
         
-        
-        pass
-        
-    
+        return img, msk
+                
     # Nested function : _augment() --------------------------------------------
     
     def _augment(img, msk):
         
         img = img.copy()
-        msk = msk.copy()
+        if msk is not None:
+            msk = msk.copy()
         
         # Stats (before augmentation)
         min_0, max_0 = np.min(img), np.max(img)
@@ -255,20 +268,8 @@ def augment(
         if np.random.rand() < flip_p:
             img, msk = _flip(img, msk)
             
-        if np.random.rand() < distord_p:
-            num_steps = np.random.randint(
-                params["nsteps_low"], params["nsteps_high"])
-            distort_limit = np.random.uniform(
-                params["dlimit_low"], params["dlimit_high"])
-            spatial_transforms = A.Compose([
-                A.GridDistortion(
-                    num_steps=num_steps, 
-                    distort_limit=distort_limit, 
-                    p=1
-                    )
-                ])
-            outputs = spatial_transforms(image=img, mask=msk)
-            img, msk = outputs["image"], outputs["mask"]
+        if np.random.rand() < distort_p:
+            img, msk = _distort(img, msk)
         
         # Normalization -------------------------------------------------------
         
@@ -292,14 +293,16 @@ def augment(
         np.arange(0, imgs.shape[0]), size=iterations)
 
     outputs = Parallel(n_jobs=-1, backend="threading")(
-        delayed(_augment)(imgs[i], msks[i])
-        for i in idxs
-        )
-
+            delayed(_augment)(imgs[i], msks[i] if msks is not None else None)
+            for i in idxs
+            )
+    
     imgs = np.stack([data[0] for data in outputs])
-    msks = np.stack([data[1] for data in outputs])
+    if msks is not None:
+        msks = np.stack([data[1] for data in outputs])
+        return imgs, msks
         
-    return imgs, msks
+    return imgs
 
 #%% Execute -------------------------------------------------------------------
 
@@ -336,9 +339,9 @@ if __name__ == "__main__":
     # Paths
     
     # dataset = "em_mito"
-    dataset = "fluo_nuclei_instance"
+    # dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
-    # dataset = "sat_roads"
+    dataset = "sat_roads"
     
     data_path = Path.cwd().parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
@@ -372,22 +375,54 @@ if __name__ == "__main__":
 #%% augment() -----------------------------------------------------------------
     
     # Parameters
-    mask_method = "binary"
-    iterations = 500
-    invert_p   = 0
-    gamma_p    = 0.5
-    gblur_p    = 0.5
-    noise_p    = 0.5
-    flip_p     = 0.5
-    distord_p  = 0.5
+    msks = None
+    msk_method = "binary"
+    iterations  = 500
+    gamma_p     = 0.5
+    gblur_p     = 0.5
+    noise_p     = 0.5
+    flip_p      = 0.5
+    distort_p   = 0.5
            
+    # -------------------------------------------------------------------------
+    
+    params = {
+               
+        # Gamma
+        "gamma_low"          : 0.75,
+        "gamma_high"         : 1.25,
+        "gamma_chn"          : "independent",
+        
+        # Gaussian blur
+        "gblur_sigma_low"    : 1,
+        "gblur_sigma_high"   : 3,
+        "gblur_chn"          : "shared",
+        
+        # Noise
+        "noise_gain_low"     : 30,
+        "noise_gain_high"    : 60,
+        "noise_std_low"      : 3,
+        "noise_std_high"     : 6,
+        "noise_chn"          : "independent",
+        
+        # Grid distort
+        "distort_steps_low"  : 1,
+        "distort_steps_high" : 10,
+        "distort_limit_low"  : 0.1,
+        "distort_limit_high" : 0.5,
+        
+        }
+    
+    # params = None
+
     # -------------------------------------------------------------------------
     
     # prepare_masks()
     print("prepare_masks() : ", end="", flush=True)
     t0 = time.time()
     
-    msk_trn = process_masks(msk_trn, method=mask_method).astype("float32")
+    if msks is not None:
+        msk_trn = process_masks(msk_trn, method=msk_method).astype("float32")
     
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
@@ -398,16 +433,23 @@ if __name__ == "__main__":
     print("augment() : ", end="", flush=True)
     t0 = time.time()
     
-    raw_trn_aug, msk_trn_aug = augment(
-        raw_trn, msk_trn, iterations,
-        invert_p=invert_p, 
+    outputs = augment(
+        raw_trn, 
+        iterations=iterations,
+        msks=msks, 
+        params=params,
         gamma_p=gamma_p, 
         gblur_p=gblur_p, 
         noise_p=noise_p, 
         flip_p=flip_p, 
-        distord_p=distord_p,
+        distort_p=distort_p,
         preserve_range=True,
         )
+    
+    if msks is not None:
+        raw_trn_aug, msk_trn_aug = outputs
+    else:
+        raw_trn_aug = outputs
     
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
@@ -436,6 +478,7 @@ if __name__ == "__main__":
         raw_trn_aug, visible=1,
         contrast_limits=contrast_limits,
         )
-    viewer.add_labels(
-        msk_trn_aug.astype("uint8"), visible=0,
-        )
+    if msks is not None:
+        viewer.add_labels(
+            msk_trn_aug.astype("uint8"), visible=0,
+            )

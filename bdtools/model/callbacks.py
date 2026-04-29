@@ -21,8 +21,8 @@ class CallBacks(Callback):
         self.X_val, self.y_val = self.unet.X_val, self.unet.y_val
         self.parameters = unet.parameters
         for key, val in self.parameters.items():
-            if not isinstance(val, dict):
-                setattr(self, key, val)
+            # if not isinstance(val, dict):
+            setattr(self, key, val)
         
         # Execute
         self.initialize()
@@ -40,7 +40,7 @@ class CallBacks(Callback):
         
         # Checkpoint
         self.checkpoint = ModelCheckpoint(
-            filepath=self.unet.model_path / "weights.h5",
+            filepath=self.unet.model_path / "weights.keras",
             save_weights_only=True,
             save_best_only=True,
             monitor="val_loss", 
@@ -153,8 +153,10 @@ class CallBacks(Callback):
             size=10, color="k",
             transform=axis.transAxes, ha="center", va="center",
             )
+        y_min, y_max = axis.get_ylim()
+        bvl_position = (best_val_loss - y_min) / (y_max - y_min)
         axis.text(
-            1.025, best_val_loss, f"{best_val_loss:.4f}", 
+            1.025, bvl_position, f"{best_val_loss:.4f}", 
             size=10, color="k",
             transform=axis.transAxes, ha="left", va="center",
             )
@@ -167,7 +169,7 @@ class CallBacks(Callback):
         
         axis.set_title(model_name, pad=20)
         axis.set_xlim(0, epochs)
-        axis.set_ylim(0, 1)
+        # axis.set_ylim(0, 1)
         axis.set_xlabel("epochs")
         axis.set_ylabel("loss")
         axis.legend(

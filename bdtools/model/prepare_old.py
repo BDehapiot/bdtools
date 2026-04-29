@@ -3,9 +3,9 @@
 import numpy as np
 
 # bdtools
-from bdtools.patch import extract_patches
-from bdtools.mask import process_masks
 from bdtools.augment import augment
+from bdtools.mask import process_masks
+from bdtools.patch import extract_patches
 
 #%% Class(Prepare) ------------------------------------------------------------
 
@@ -16,8 +16,8 @@ class Prepare:
         self.X, self.y = unet.X, unet.y
         self.parameters = unet.parameters
         for key, val in self.parameters.items():
-            if not isinstance(val, dict):
-                setattr(self, key, val)
+            # if not isinstance(val, dict):
+            setattr(self, key, val)
                 
         # Run
         self.prepare_masks()
@@ -27,6 +27,8 @@ class Prepare:
             self.augment_data()
         
         # Pass data to model class
+        self.unet.X = self.X
+        self.unet.y = self.y
         self.unet.X_trn = self.X_trn
         self.unet.y_trn = self.y_trn
         self.unet.X_val = self.X_val
@@ -81,13 +83,15 @@ class Prepare:
 
     def augment_data(self):
         self.X_trn, self.y_trn = augment(
-            self.X_trn, self.y_trn, self.augment_iterations,
-            invert_p  = self.augment_invert_p,
-            gamma_p   = self.augment_gamma_p,
-            gblur_p   = self.augment_gblur_p,
-            noise_p   = self.augment_noise_p,
-            flip_p    = self.augment_flip_p,
-            distord_p = self.augment_distord_p,
+            self.X_trn, 
+            msks=self.y_trn, 
+            iterations=self.augment_iterations,
+            params=self.augment_params,
+            gamma_p=self.augment_gamma_p,
+            gblur_p=self.augment_gblur_p,
+            noise_p=self.augment_noise_p,
+            flip_p=self.augment_flip_p,
+            distort_p=self.augment_distort_p,
             preserve_range=True,
             )
 

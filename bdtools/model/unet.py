@@ -10,9 +10,9 @@ import segmentation_models as sm
 
 # bdtools
 from bdtools.check import Check
-from bdtools.unet import metrics
-from bdtools.unet.prepare import Prepare
-from bdtools.unet.callbacks import CallBacks
+from bdtools.model import metrics
+from bdtools.model.prepare import Prepare
+from bdtools.model.callbacks import CallBacks
 from bdtools.patch import extract_patches, merge_patches
 
 # tensorflow
@@ -47,8 +47,8 @@ class UNet:
                 print(f"({self.model_path.name}) : load parameters ")
 
         for key, val in self.parameters.items():
-            if not isinstance(val, dict):
-                setattr(self, key, val)
+            # if not isinstance(val, dict):
+            setattr(self, key, val)
         
     def initialize_train(self):
         
@@ -56,22 +56,19 @@ class UNet:
         if self.model_path is None:
             
             for key, val in self.parameters.items():
-                if not isinstance(val, dict):
-                    setattr(self, key, val)
+                # if not isinstance(val, dict):
+                setattr(self, key, val)
             
             # Default model name (if not provided)
             if self.parameters["model_name"] is None:
-                if isinstance(self.X, list):
-                    n = len(self.X)
-                elif isinstance(self.X, np.ndarray):
-                    n = self.X.shape[0]
+                n = self.X.shape[0]
                 n_trn = int(n - (n * self.validation_split))
                 self.model_name = (
                     "model_"
                     f"{self.patch_size}_"
                     f"{self.mask_method}_"
+                    f"{n_trn}-"
                     f"{self.augment_iterations}"
-                    f"-{n_trn}"
                     )
                 
             if self.root_path is None:
@@ -107,7 +104,7 @@ class UNet:
             )
         
         # Load weights (optional)
-        weights_path = self.model_path / "weights.h5"
+        weights_path = self.model_path / "weights.keras"
         if weights_path.exists():
             print(f"({self.model_path.name}) : load weights ")
             self.model.load_weights(weights_path)
@@ -116,17 +113,30 @@ class UNet:
 
     def train(self, X, y):
         
-        # Initialize
+        # Check
         self.X, self.y = X, y
         Check(
             self.X, name="X", 
             ctype=(np.ndarray, list), dtype=float,
             vrange=(0, 1),
             )
+        
+        # Prepare
+        Prepare(self, self.X, y=self.y)
+        
+        # Display (optional)
+        if self.display:
+            import napari
+            vwr = napari.Viewer()
+            vwr.add_image(self.y_trn, name="y_trn")
+            vwr.add_image(self.X_trn, name="X_trn")
+            vwr.grid.enabled = True
+            return
+        
+        # Initialize & build
         self.initialize_train()
         self.build()
-        Prepare(self)
-        
+
         # Callbacks
         self.callbacks = [CallBacks(self)]
         
@@ -240,10 +250,10 @@ if __name__ == "__main__":
     # Paths
     
     # dataset = "em_mito"
-    # dataset = "fluo_tissue"
+    dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
-    dataset = "sat_roads"
+    # dataset = "sat_roads"
     
     data_path = Path.cwd().parent.parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
@@ -282,34 +292,60 @@ if __name__ == "__main__":
 
         # Paths
         "root_path"          : None,
-        "model_name"         : "model_128_binary_0-80",
+        "model_name"         : None,
 
         # Build
-        "input_shape"        : (None, None, 3),
+        "input_shape"        : (None, None, 1),
         "backbone"           : "resnet18",
         "activation"         : "sigmoid",
             
         # Train
+        "display"            : 0,
         "epochs"             : 256,
         "batch_size"         : 16,
         "validation_split"   : 0.2,
         "metric"             : "soft_dice_coef",
-        "learning_rate"      : 0.0001,
+        "learning_rate"      : 0.001,
         "patience"           : 64,
 
         # Prepare
-        "patch_size"         : 128,
-        "patch_overlap"      : 0,
+        "patch_size"         : 512,
+        "patch_overlap"      : 256,
         "mask_method"        : "binary",
                 
         # Augment
-        "augment_iterations" : 0,
-        "augment_invert_p"   : 0,
-        "augment_gamma_p"    : 0.5,
-        "augment_gblur_p"    : 0.5,
+        "augment_iterations" : 128,
+        "augment_gamma_p"    : 0,
+        "augment_gblur_p"    : 0,
         "augment_noise_p"    : 0.5,
         "augment_flip_p"     : 0.5,
-        "augment_distord_p"  : 0.5,
+        "augment_distort_p"  : 0.5,
+        "augment_params"     : {
+            
+            # Gamma
+            "gamma_low"          : 0.75,
+            "gamma_high"         : 1.25,
+            "gamma_chn"          : "independent",
+            
+            # Gaussian blur
+            "gblur_sigma_low"    : 1,
+            "gblur_sigma_high"   : 3,
+            "gblur_chn"          : "shared",
+            
+            # Noise
+            "noise_gain_low"     : 30,
+            "noise_gain_high"    : 60,
+            "noise_std_low"      : 3,
+            "noise_std_high"     : 6,
+            "noise_chn"          : "independent",
+            
+            # Grid distort
+            "distort_steps_low"  : 1,
+            "distort_steps_high" : 10,
+            "distort_limit_low"  : 0.1,
+            "distort_limit_high" : 0.5,
+            
+            },
 
         }
     
@@ -320,7 +356,7 @@ if __name__ == "__main__":
         
     # Predict() ---------------------------------------------------------------
     
-    # model_path = Path(Path.cwd(), "model_128_binary_0-80")
+    # model_path = Path(Path.cwd(), "model_256_binary_1280-2048")
     # unet = UNet(parameters=None, model_path=model_path)
     # prds = unet.predict(raw_trn)
     
