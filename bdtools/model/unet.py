@@ -29,6 +29,23 @@ class UNet:
         # Run
         self.initialize()
 
+#%% Class(UNet) function(s) ---------------------------------------------------
+
+    def get_parameters(self):
+        for key, val in self.parameters.items():
+            setattr(self, key, val)
+    
+    def get_model_path(self):
+        if self.root_path is None:
+            self.root_path = Path.cwd()
+        self.model_path = self.root_path / self.model_name
+        
+    def load_model_weights(self):
+        self.weights_path = self.model_path / "weights.keras"
+        if self.weights_path.exists():
+            print(f"({self.model_path.name}) : load weights ")
+            self.model.load_weights(self.weights_path)
+
 #%% Class(UNet) initialize() --------------------------------------------------
 
     def initialize(self):
@@ -46,39 +63,40 @@ class UNet:
                 self.parameters = pickle.load(file)
                 print(f"({self.model_path.name}) : load parameters ")
 
-        for key, val in self.parameters.items():
-            # if not isinstance(val, dict):
-            setattr(self, key, val)
-        
+        self.get_parameters()
+                    
     def initialize_train(self):
-        
-        # Get model path (if not provided)
+                            
         if self.model_path is None:
-            
-            for key, val in self.parameters.items():
-                # if not isinstance(val, dict):
-                setattr(self, key, val)
-            
+
             # Default model name (if not provided)
-            if self.parameters["model_name"] is None:
+            if self.model_name is None:
+                
                 n = self.X.shape[0]
                 n_trn = int(n - (n * self.validation_split))
                 self.model_name = (
-                    "model_"
+                    "model-unet_"
                     f"{self.patch_size}_"
                     f"{self.mask_method}_"
                     f"{n_trn}-"
                     f"{self.augment_iterations}"
                     )
                 
-            if self.root_path is None:
-                self.root_path = Path.cwd()
-            self.model_path = self.root_path / self.model_name
+                self.get_model_path()
+                
+            else:
+                
+                self.get_model_path()
+                self.load_model_weights()
+                                
+        else:
+            
+            self.load_model_weights()
         
         # Create model directory
         if not self.model_path.exists():
             self.model_path.mkdir(exist_ok=True)
-        
+
         # Save parameters
         with open(self.model_path / "parameters.pkl", "wb") as file:
             pickle.dump(self.parameters, file)
@@ -102,12 +120,6 @@ class UNet:
             loss="binary_crossentropy", # Parameter
             metrics=[getattr(metrics, self.metric)],
             )
-        
-        # Load weights (optional)
-        weights_path = self.model_path / "weights.keras"
-        if weights_path.exists():
-            print(f"({self.model_path.name}) : load weights ")
-            self.model.load_weights(weights_path)
                         
 #%% Class(UNet) train() -------------------------------------------------------
 
@@ -133,9 +145,11 @@ class UNet:
             vwr.grid.enabled = True
             return
         
-        # Initialize & build
-        self.initialize_train()
+        # Build
         self.build()
+        
+        # Initialize training
+        self.initialize_train()
 
         # Callbacks
         self.callbacks = [CallBacks(self)]
@@ -250,8 +264,8 @@ if __name__ == "__main__":
     # Paths
     
     # dataset = "em_mito"
-    dataset = "fluo_tissue"
-    # dataset = "fluo_nuclei_instance"
+    # dataset = "fluo_tissue"
+    dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
     # dataset = "sat_roads"
     
@@ -286,7 +300,7 @@ if __name__ == "__main__":
         raw_trn = norm_pct(
             raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
     
-#%% UNet() --------------------------------------------------------------------
+#%% UNet() train() ------------------------------------------------------------
     
     parameters = {
 
@@ -349,12 +363,10 @@ if __name__ == "__main__":
 
         }
     
-    # Train() -----------------------------------------------------------------
-    
     unet = UNet(parameters=parameters, model_path=None)
     unet.train(raw_trn, msk_trn)
         
-    # Predict() ---------------------------------------------------------------
+#%% UNet() predict() ----------------------------------------------------------
     
     # model_path = Path(Path.cwd(), "model_256_binary_1280-2048")
     # unet = UNet(parameters=None, model_path=model_path)

@@ -30,10 +30,9 @@ class Prepare:
         self.model.X = self.X        
         self.model.X_trn = self.X_trn
         self.model.X_val = self.X_val
-        if self.y is not None:
-            self.model.y = self.y
-            self.model.y_trn = self.y_trn
-            self.model.y_val = self.y_val
+        self.model.y = self.y
+        self.model.y_trn = self.y_trn
+        self.model.y_val = self.y_val
     
 #%% Class(Prepare) function(s) ------------------------------------------------
 

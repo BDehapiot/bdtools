@@ -14,14 +14,13 @@ from tensorflow.keras.callbacks import (
 
 class CallBacks(Callback):
     
-    def __init__(self, unet):
+    def __init__(self, model):
         super().__init__()
-        self.unet = unet
-        self.X_trn, self.y_trn = self.unet.X_trn, self.unet.y_trn
-        self.X_val, self.y_val = self.unet.X_val, self.unet.y_val
-        self.parameters = unet.parameters
+        self.model = model
+        self.X_trn, self.y_trn = self.model.X_trn, self.model.y_trn
+        self.X_val, self.y_val = self.model.X_val, self.model.y_val
+        self.parameters = model.parameters
         for key, val in self.parameters.items():
-            # if not isinstance(val, dict):
             setattr(self, key, val)
         
         # Execute
@@ -40,7 +39,7 @@ class CallBacks(Callback):
         
         # Checkpoint
         self.checkpoint = ModelCheckpoint(
-            filepath=self.unet.model_path / "weights.keras",
+            filepath=self.model.model_path / "weights.keras",
             save_weights_only=True,
             save_best_only=True,
             monitor="val_loss", 
@@ -54,10 +53,10 @@ class CallBacks(Callback):
             mode="min",
             )
         
-    def set_model(self, model):
-        self.model = model
-        self.checkpoint.set_model(model)
-        self.early_stopping.set_model(model)
+    def set_model(self, mmodel):
+        self.mmodel = mmodel
+        self.checkpoint.set_model(mmodel)
+        self.early_stopping.set_model(mmodel)
                
 #%% Class(CallBacks) : events -------------------------------------------------    
         
@@ -87,7 +86,7 @@ class CallBacks(Callback):
         self.checkpoint.on_train_end(logs)
         self.early_stopping.on_train_end(logs)
         self.plot_training()
-        self.predict_examples()
+        # self.predict_examples()
         
 #%% Class(CallBacks) : print_log() --------------------------------------------    
         
@@ -131,10 +130,21 @@ class CallBacks(Callback):
         model_name = self.model_name
         
         # Info
+        
+        if hasattr(self, "backbone"):
+            var_str = (
+                f"backbone         : {self.backbone}\n"
+                )
+        elif hasattr(self, "filters"):
+            var_str = (
+                f"filters          : {self.filters }\n"
+                f"latent size      : {self.latent_size}\n"
+                )
+        
         infos = (
             f"input shape      : "
-                f"{'x'.join(str(s) for s in self.unet.X_trn.shape)}\n"
-            f"backbone         : {self.backbone}\n"
+                f"{'x'.join(str(s) for s in self.model.X_trn.shape)}\n"
+            f"{var_str}"
             f"batch size       : {self.batch_size}\n"
             f"validation_split : {self.validation_split}\n"
             f"learning rate    : {self.learning_rate}\n"
@@ -169,7 +179,7 @@ class CallBacks(Callback):
         
         axis.set_title(model_name, pad=20)
         axis.set_xlim(0, epochs)
-        # axis.set_ylim(0, 1)
+        axis.set_ylim(0, np.mean(val_losses) * 2)
         axis.set_xlabel("epochs")
         axis.set_ylabel("loss")
         axis.legend(
@@ -179,7 +189,7 @@ class CallBacks(Callback):
         
         # Save    
         plt.tight_layout()
-        plt.savefig(self.unet.model_path / "train_plot.png", format="png")
+        plt.savefig(self.model.model_path / "train_plot.png", format="png")
         plt.show()
         
 #%% Class(CallBacks) : predict_examples() ------------------------------------- 
@@ -219,6 +229,6 @@ class CallBacks(Callback):
         
         # Save
         io.imsave(
-            self.unet.model_path / "predict_examples.tif",
+            self.model.model_path / "predict_examples.tif",
             predict_examples, check_contrast=False
             )
