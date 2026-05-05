@@ -6,16 +6,23 @@ from pathlib import Path
 
 # bdtools
 from bdtools.check import Check
-from bdtools.model.prepare import Prepare
 from bdtools.model import metrics
+from bdtools.model.prepare import Prepare
 from bdtools.model.callbacks import CallBacks
+from bdtools.patch import extract_patches, merge_patches
 
 # tensorflow
 import tensorflow as tf
 from tensorflow.keras import layers, Model
 from tensorflow.keras.optimizers import Adam
 
-#%% Class(AEC) ----------------------------------------------------------------
+#%% Comments ------------------------------------------------------------------
+
+"""
+- Input shape (y and x) are somehow link to patch size, get rid of redundancy
+"""
+
+#%% Class(AutoEncoder) --------------------------------------------------------
 
 class AutoEncoder:
     
@@ -26,7 +33,7 @@ class AutoEncoder:
         # Run
         self.initialize()
 
-#%% Class(AEC) Function(s) ----------------------------------------------------
+#%% Class(AutoEncoder) Function(s) --------------------------------------------
 
     def get_parameters(self):
         for key, val in self.parameters.items():
@@ -43,7 +50,7 @@ class AutoEncoder:
             print(f"({self.model_path.name}) : load weights ")
             self.model.load_weights(self.weights_path)
 
-#%% Class(AEC) initialize() ---------------------------------------------------
+#%% Class(AutoEncoder) initialize() -------------------------------------------
 
     def initialize(self):
         
@@ -99,7 +106,7 @@ class AutoEncoder:
         with open(self.model_path / "parameters.pkl", "wb") as file:
             pickle.dump(self.parameters, file)
 
-#%% Class(AEC) build() --------------------------------------------------------
+#%% Class(AutoEncoder) build() ------------------------------------------------
 
     def build(self):
 
@@ -111,13 +118,14 @@ class AutoEncoder:
         for f in self.filters:
             x = layers.Conv2D(f, (3, 3), padding="same")(x)
             x = layers.BatchNormalization()(x)
-            x = layers.Activation("relu")(x)
+            # x = layers.Activation("relu")(x)
+            x = layers.LeakyReLU(alpha=0.1)(x)
             x = layers.MaxPooling2D((2, 2))(x)
     
         x = layers.Flatten()(x)
         latent_space = layers.Dense(
             self.latent_size, activation="relu", name="latent_features")(x)
-        
+
         self.model_enc = Model(enc_inputs, latent_space, name="encoder")
     
         # Decoder -------------------------------------------------------------
@@ -146,40 +154,23 @@ class AutoEncoder:
     
         # Compile -------------------------------------------------------------
         
-        def combined_loss(y_true, y_pred):
-            bce = tf.keras.losses.binary_crossentropy(y_true, y_pred)
-            dice_loss = 1 - metrics.soft_dice_coef(y_true, y_pred)
-            return bce + (5.0 * dice_loss)
-        
         self.model_aec.compile(
             optimizer=Adam(learning_rate=self.learning_rate),
-            loss=combined_loss,
+            loss=getattr(metrics, self.loss),
             metrics=[getattr(metrics, self.metric)],
             )
         
-#%% Class(AEC) prepare() ------------------------------------------------------
-
-    def prepare(self):
+        # def combined_loss(y_true, y_pred):
+        #     bce = tf.keras.losses.binary_crossentropy(y_true, y_pred)
+        #     dice_loss = 1 - metrics.soft_dice_coef(y_true, y_pred)
+        #     return bce + (15.0 * dice_loss)
         
-        def split_data(X):
-            n_total = X.shape[0]
-            n_val = int(n_total * self.validation_split)
-            idx = np.random.permutation(np.arange(0, n_total))
-            X_trn = X[idx[n_val:]] 
-            X_val = X[idx[:n_val]]
-            return X_trn, X_val
-        
-        # Split and setup data pipeline         
-        self.X_trn, self.X_val = split_data(self.X)
-        self.X_trn_dataset = tf.data.Dataset.from_tensor_slices(
-            (self.X_trn, self.X_trn))
-        self.X_trn_dataset = self.X_trn_dataset.batch(
-            self.batch_size).prefetch(tf.data.AUTOTUNE)
-        self.X_val_dataset = tf.data.Dataset.from_tensor_slices(
-            (self.X_val, self.X_val))
-        self.X_val_dataset = self.X_val_dataset.batch(
-            self.batch_size).prefetch(tf.data.AUTOTUNE)
-        
+        # self.model_aec.compile(
+        #     optimizer=Adam(learning_rate=self.learning_rate),
+        #     loss=combined_loss,
+        #     metrics=[getattr(metrics, self.metric)],
+        #     )
+                
 #%% Class(AutoEncoder) train() ------------------------------------------------ 
         
     def train(self, X):
@@ -241,7 +232,7 @@ class AutoEncoder:
             for cb in self.callbacks:
                 cb.on_train_end(logs={})
         
-#%% Class (AEC) predict() -----------------------------------------------------
+#%% Class(AutoEncoder) predict() ----------------------------------------------
 
     def predict(self, X, patch_overlap=None, batch_size=32, chunk_size=None):
     
@@ -260,38 +251,45 @@ class AutoEncoder:
             islist = False
             X = [X]
         
-        # prds = []
-        # for arr in X:
+        prds = []
+        for arr in X:
             
-        #     shape = arr.shape[:-1] if multichannel else arr.shape
-                    
-        #     # Predict
+            shape = arr.shape[:-1] if multichannel else arr.shape
             
-        #     if chunk_size:
-                
-        #         n_chunks = int(np.ceil(arr.shape[0] / chunk_size))
-        #         print(f"n_chunks = {n_chunks}")
-                
-        #         prd = []
-        #         for i, idx in enumerate(range(0, len(arr), chunk_size)):
-        #             chunk = arr[idx:idx + chunk_size]
-        #             prd.append(
-        #                 self.model_aec.predict(chunk, batch_size=batch_size))
-        #         prd = np.concatenate(prd, axis=0)
-                
-        #         del chunk
+            # Extract patches
+            patches = np.stack(extract_patches(
+                arr, self.patch_size, patch_overlap, 
+                multichannel=multichannel
+                ))
+        
+            # Predict
             
-        #     else:
+            if chunk_size:
                 
-        #         prd = self.model_aec.predict(arr, batch_size=batch_size)
+                n_chunks = int(np.ceil(patches.shape[0] / chunk_size))
+                print(f"n_chunks = {n_chunks}")
                 
-        #         # del patches
+                prd = []
+                for i, idx in enumerate(range(0, len(patches), chunk_size)):
+                    chunk = patches[idx:idx + chunk_size]
+                    prd.append(
+                        self.model_aec.predict(chunk, batch_size=batch_size))
+                prd = np.concatenate(prd, axis=0)
                 
-        #     # Merge patches
-        #     prd = prd.squeeze()
-        #     prds.append(prd)
+                del chunk
+            
+            else:
+                
+                prd = self.model_aec.predict(patches, batch_size=batch_size)
+                
+                del patches
+                
+            # Merge patches
+            prd = prd.squeeze()
+            prd = merge_patches(prd, shape, patch_overlap)
+            prds.append(prd)
     
-        # return prds if islist else prds[0]
+        return prds if islist else prds[0]
  
 #%% Execute -------------------------------------------------------------------
 
@@ -326,8 +324,8 @@ if __name__ == "__main__":
     
     # dataset = "em_mito"
     # dataset = "fluo_tissue"
-    dataset = "fluo_nuclei_instance"
-    # dataset = "fluo_nuclei_semantic"
+    # dataset = "fluo_nuclei_instance"
+    dataset = "fluo_nuclei_semantic"
     # dataset = "sat_roads"
     
     data_path = Path.cwd().parent.parent / "_local" / dataset
@@ -360,8 +358,14 @@ if __name__ == "__main__":
     else:
         raw_trn = norm_pct(
             raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
+        
+    print(
+        f"min  = {np.min(raw_trn):.3f}\n"
+        f"max  = {np.max(raw_trn):.3f}\n"
+        f"mean = {np.mean(raw_trn):.3f}\n"
+        )
     
-#%% AEC() train() -------------------------------------------------------------
+#%% AutoEncoder() train() -----------------------------------------------------
     
     parameters = {
 
@@ -370,29 +374,30 @@ if __name__ == "__main__":
         "model_name"         : None,
 
         # Build
-        "input_shape"      : (128, 128, 1),
-        "filters"          : [32, 64],
-        "latent_size"      : 512,
-        "activation"       : "sigmoid",
+        "input_shape"        : (32, 32, 1),
+        "filters"            : [32],
+        "latent_size"        : 512,
+        "activation"         : "sigmoid",
+        "loss"               : "mae",
+        "metric"             : "mae",
             
         # Train
         "display"            : 0,
-        "epochs"             : 256,
+        "epochs"             : 512,
         "batch_size"         : 16,
         "validation_split"   : 0.2,
-        "metric"             : "soft_dice_coef",
-        "learning_rate"      : 0.001,
-        "patience"           : 64,
+        "learning_rate"      : 0.0001,
+        "patience"           : 128,
 
         # Prepare
-        "patch_size"         : 128,
+        "patch_size"         : 32,
         "patch_overlap"      : 0,
                 
         # Augment
-        "augment_iterations" : None,
-        "augment_gamma_p"    : 0,
-        "augment_gblur_p"    : 0,
-        "augment_noise_p"    : 0.5,
+        "augment_iterations" : 512,
+        "augment_gamma_p"    : 0.0,
+        "augment_gblur_p"    : 0.0,
+        "augment_noise_p"    : 0.0,
         "augment_flip_p"     : 0.5,
         "augment_distort_p"  : 0.5,
         "augment_params"     : {
@@ -424,14 +429,15 @@ if __name__ == "__main__":
 
         }
     
-    # aec = AutoEncoder(parameters=parameters, model_path=None)
-    # aec.train(raw_trn)
+    aec = AutoEncoder(parameters=parameters, model_path=None)
+    aec.train(raw_trn)
         
-#%% AEC() Predict() -----------------------------------------------------------
+#%% AutoEncoder() Predict() ---------------------------------------------------
     
-    model_path = Path(Path.cwd(), "model-aec_128_2_512_35")
-    aec = AutoEncoder(parameters=None, model_path=model_path)
-    aec.predict(raw_trn)
+    # model_path = Path(Path.cwd(), "model-aec_32_2_512_29920-512")
+    # aec = AutoEncoder(parameters=None, model_path=model_path)
+    # prds = aec.predict(
+    #     raw_trn, patch_overlap=None, batch_size=16, chunk_size=None)
     
     # # Display
     # import napari

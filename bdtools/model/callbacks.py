@@ -86,7 +86,7 @@ class CallBacks(Callback):
         self.checkpoint.on_train_end(logs)
         self.early_stopping.on_train_end(logs)
         self.plot_training()
-        # self.predict_examples()
+        self.predict_examples()
         
 #%% Class(CallBacks) : print_log() --------------------------------------------    
         
@@ -126,10 +126,11 @@ class CallBacks(Callback):
         best_epoch_time = self.epoch_times[best_epoch]
         best_val_loss = self.best_val_loss
         best_val_metric = self.val_metrics[best_epoch]
-        metric = self.metric
         model_name = self.model_name
         
         # Info
+        
+        # /////////////////////////////////////////////////////////////////////
         
         if hasattr(self, "backbone"):
             var_str = (
@@ -141,6 +142,8 @@ class CallBacks(Callback):
                 f"latent size      : {self.latent_size}\n"
                 )
         
+        # /////////////////////////////////////////////////////////////////////
+        
         infos = (
             f"input shape      : "
                 f"{'x'.join(str(s) for s in self.model.X_trn.shape)}\n"
@@ -148,8 +151,8 @@ class CallBacks(Callback):
             f"batch size       : {self.batch_size}\n"
             f"validation_split : {self.validation_split}\n"
             f"learning rate    : {self.learning_rate}\n"
-            f"best_val_loss    : {best_val_loss:.4f}\n"
-            f"best_val_metric  : {best_val_metric:.4f} ({metric})\n"
+            f"best_val_loss    : {best_val_loss:.4f} ({self.loss})\n"
+            f"best_val_metric  : {best_val_metric:.4f} ({self.metric})\n"
             )
         
         # Plot
@@ -215,7 +218,16 @@ class CallBacks(Callback):
             img = self.X_val[idx]
             if self.input_shape[-1] > 1:
                 img = np.mean(img, axis=-1)
-            gtr = self.y_val[idx]
+                
+            # /////////////////////////////////////////////////////////////////
+                
+            if hasattr(self, "backbone"):
+                gtr = self.y_val[idx]
+            elif hasattr(self, "filters"): 
+                gtr = self.X_val[idx]
+                
+            # /////////////////////////////////////////////////////////////////
+            
             prd = prds[i].squeeze()
             acc = np.abs(gtr - prd)
             predict_examples.append(

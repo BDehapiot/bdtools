@@ -5,6 +5,45 @@ from tensorflow.keras import backend as K
 
 #%% Function(s): metrics -----------------------------------------------------
 
+def mse(y_true, y_pred):
+    
+    """
+    Mean Squared Error (MSE).
+    
+    Measures the average of the squares of the errors.
+    Useful for penalizing larger outliers in reconstruction.
+    y_true: ground truth image/mask.
+    y_pred: predicted image/mask.
+    """
+    
+    return K.mean(K.square(y_pred - y_true))
+
+def mae(y_true, y_pred):
+    
+    """
+    Mean Absolute Error (MAE).
+    
+    Measures the average magnitude of the errors.
+    More robust to outliers than MSE.
+    y_true: ground truth image/mask.
+    y_pred: predicted image/mask.
+    """
+    
+    return K.mean(K.abs(y_pred - y_true))
+
+def bce(y_true, y_pred):
+    
+    """
+    Binary Cross-Entropy (BCE).
+    
+    Measures the distance between true labels and predicted probabilities.
+    Effective for forcing the model to distinguish between foreground and background.
+    y_true: ground truth image/mask (scaled 0-1).
+    y_pred: predicted image/mask (scaled 0-1).
+    """
+    
+    return K.mean(K.binary_crossentropy(y_true, y_pred))
+
 def dice_coef(y_true, y_pred, threshold=0.5, smooth=1e-6):
     
     """
@@ -15,8 +54,8 @@ def dice_coef(y_true, y_pred, threshold=0.5, smooth=1e-6):
     y_pred: probability mask.
     """
     
-    y_pred_bin = K.cast(y_pred > threshold, 'float32')
-    y_true_bin = K.cast(y_true > threshold, 'float32')
+    y_pred_bin = K.cast(y_pred > threshold, "float32")
+    y_true_bin = K.cast(y_true > threshold, "float32")
     intersection = K.sum(y_true_bin * y_pred_bin)
     return (2. * intersection + smooth) / (K.sum(y_true_bin) + K.sum(y_pred_bin) + smooth)
 
@@ -98,16 +137,3 @@ def f1_score(y_true, y_pred, threshold=0.5):
     prec = precision(y_true, y_pred, threshold)
     rec = recall(y_true, y_pred, threshold)
     return 2 * (prec * rec) / (prec + rec + K.epsilon())
-
-def brier_score(y_true, y_pred):
-    
-    """
-    Brier score.
-    
-    Mean squared error between predicted probabilities and labels.
-    Lower score indicates better calibration.
-    y_true: binary mask.
-    y_pred: probability mask.
-    """
-    
-    return tf.reduce_mean(tf.square(y_pred - y_true))

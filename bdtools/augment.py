@@ -302,7 +302,7 @@ def augment(
         msks = np.stack([data[1] for data in outputs])
         return imgs, msks
         
-    return imgs
+    return imgs, None
 
 #%% Execute -------------------------------------------------------------------
 
