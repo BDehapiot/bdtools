@@ -203,7 +203,8 @@ class CallBacks(Callback):
         nS = self.X_val.shape[0]
         nY = self.X_val.shape[1]
         nX = self.X_val.shape[2]
-        max_size = ((max_mb * 2 ** 20) / (nY * nX)) / 4 
+        nC = self.input_shape[-1]
+        max_size = (((max_mb * 2 ** 20) / (nY * nX)) / 4 ) * nC
         max_size = np.floor(max_size).astype(int)
         size = np.min([max_img, max_size, nS])
         
@@ -211,14 +212,14 @@ class CallBacks(Callback):
         idxs = np.random.choice(
             self.X_val.shape[0], size=size, replace=False)
         prds = self.model.predict(self.X_val[idxs, ...]).squeeze()
-                
-        # Assemble predict_examples
-        predict_examples = []
+        
+        # Assemble display
+        examples = []
         for i, idx in enumerate(idxs):
+            
             img = self.X_val[idx]
-            if self.input_shape[-1] > 1:
-                img = np.mean(img, axis=-1)
-                
+            prd = prds[i]
+            
             # /////////////////////////////////////////////////////////////////
                 
             if hasattr(self, "backbone"):
@@ -227,20 +228,23 @@ class CallBacks(Callback):
                 gtr = self.X_val[idx]
                 
             # /////////////////////////////////////////////////////////////////
-            
-            prd = prds[i].squeeze()
-            acc = np.abs(gtr - prd)
-            predict_examples.append(
-                np.hstack((img, gtr, prd, acc))
-                )
-        predict_examples = np.stack(predict_examples)  
+        
+            if img.ndim > 2:
+                if gtr.ndim == 2:
+                    gtr = np.tile(gtr[:, :, np.newaxis], (1, 1, nC))
+                if prd.ndim == 2:
+                    prd = np.tile(prd[:, :, np.newaxis], (1, 1, nC))
+        
+            examples.append(np.hstack((img, gtr, prd)))
+        examples = np.stack(examples)  
+        
+        # Add borders
         for i in range(3):
-            width = prds[i].squeeze().shape[1]
-            predict_examples[:, :, width * (i + 1)] = 1
-        predict_examples = (predict_examples * 255).astype("uint8")
+            examples[:, :, (nX * (i + 1)) - 1, ...] = 1
+        examples = (examples * 255).astype("uint8")
         
         # Save
         io.imsave(
             self.model.model_path / "predict_examples.tif",
-            predict_examples, check_contrast=False
+            examples, check_contrast=False
             )

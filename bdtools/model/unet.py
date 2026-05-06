@@ -117,7 +117,7 @@ class UNet:
         # Compile
         self.model.compile(
             optimizer=Adam(learning_rate=self.learning_rate),
-            loss="binary_crossentropy", # Parameter
+            loss=getattr(metrics, self.loss),
             metrics=[getattr(metrics, self.metric)],
             )
                         
@@ -178,6 +178,7 @@ class UNet:
     def predict(self, X, patch_overlap=None, batch_size=32, chunk_size=None):
         
         self.build()
+        self.load_model_weights()
         
         # Initialize
         if patch_overlap is None:
@@ -226,12 +227,12 @@ class UNet:
                 del patches
                 
             # Merge patches
-            prd = prd.squeeze()
-            prd = merge_patches(prd, shape, patch_overlap)
+            prd = merge_patches(
+                prd, shape, patch_overlap, multichannel=False)
             prds.append(prd)
     
         return prds if islist else prds[0]
-                    
+                        
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -265,9 +266,9 @@ if __name__ == "__main__":
     
     # dataset = "em_mito"
     # dataset = "fluo_tissue"
-    dataset = "fluo_nuclei_instance"
+    # dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
-    # dataset = "sat_roads"
+    dataset = "sat_roads"
     
     data_path = Path.cwd().parent.parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
@@ -309,28 +310,29 @@ if __name__ == "__main__":
         "model_name"         : None,
 
         # Build
-        "input_shape"        : (None, None, 1),
+        "input_shape"        : (None, None, 3),
         "backbone"           : "resnet18",
         "activation"         : "sigmoid",
+        "loss"               : "bce",
+        "metric"             : "soft_dice_coef",
             
         # Train
         "display"            : 0,
         "epochs"             : 256,
         "batch_size"         : 16,
         "validation_split"   : 0.2,
-        "metric"             : "soft_dice_coef",
         "learning_rate"      : 0.001,
         "patience"           : 64,
 
         # Prepare
-        "patch_size"         : 512,
-        "patch_overlap"      : 256,
+        "patch_size"         : 128,
+        "patch_overlap"      : 0,
         "mask_method"        : "binary",
                 
         # Augment
-        "augment_iterations" : 128,
-        "augment_gamma_p"    : 0,
-        "augment_gblur_p"    : 0,
+        "augment_iterations" : None,
+        "augment_gamma_p"    : 0.5,
+        "augment_gblur_p"    : 0.5,
         "augment_noise_p"    : 0.5,
         "augment_flip_p"     : 0.5,
         "augment_distort_p"  : 0.5,
@@ -368,7 +370,7 @@ if __name__ == "__main__":
         
 #%% UNet() predict() ----------------------------------------------------------
     
-    # model_path = Path(Path.cwd(), "model_256_binary_1280-2048")
+    # model_path = Path(Path.cwd(), "model-unet_128_binary_1280-None")
     # unet = UNet(parameters=None, model_path=model_path)
     # prds = unet.predict(raw_trn)
     
@@ -382,3 +384,69 @@ if __name__ == "__main__":
     # else:
     #     vwr.add_image(raw_trn)
     #     vwr.add_image(prds)
+    
+#%% UNet() predict_examples() -------------------------------------------------
+
+    # model_path = Path(Path.cwd(), "model-unet_128_binary_35-None")
+    # unet = UNet(parameters=None, model_path=model_path)
+
+    # # -------------------------------------------------------------------------
+
+    # # Parameters
+    # X_val = raw_trn
+    # y_val = msk_trn
+    # input_shape = unet.input_shape
+    # max_img = 50
+    # max_mb = 100
+
+    # # -------------------------------------------------------------------------
+    
+    # # Determine size
+    # nS = X_val.shape[0]
+    # nY = X_val.shape[1]
+    # nX = X_val.shape[2]
+    # nC = input_shape[-1]
+    # max_size = (((max_mb * 2 ** 20) / (nY * nX)) / 4 ) * nC
+    # max_size = np.floor(max_size).astype(int)
+    # size = np.min([max_img, max_size, nS])
+    
+    # # Predict
+    # idxs = np.random.choice(
+    #     X_val.shape[0], size=size, replace=False)
+    # prds = unet.predict(X_val[idxs, ...]).squeeze()
+    
+    # # Assemble display
+    # examples = []
+    # for i, idx in enumerate(idxs):
+        
+    #     img = X_val[idx]
+    #     prd = prds[i]
+        
+    #     # /////////////////////////////////////////////////////////////////
+            
+    #     if hasattr(unet, "backbone"):
+    #         gtr = y_val[idx]
+    #     elif hasattr(unet, "filters"): 
+    #         gtr = X_val[idx]
+            
+    #     # /////////////////////////////////////////////////////////////////
+    
+    #     if img.ndim > 2:
+    #         if gtr.ndim == 2:
+    #             gtr = np.tile(gtr[:, :, np.newaxis], (1, 1, nC))
+    #         if prd.ndim == 2:
+    #             prd = np.tile(prd[:, :, np.newaxis], (1, 1, nC))
+    
+    #     examples.append(np.hstack((img, gtr, prd)))
+    # examples = np.stack(examples)  
+    
+    # # Add borders
+    # for i in range(3):
+    #     examples[:, :, (nX * (i + 1)) - 1, ...] = 1
+    # examples = (examples * 255).astype("uint8")
+    
+    # # Save
+    # io.imsave(
+    #     unet.model_path / "predict_examples.tif",
+    #     examples, check_contrast=False
+    #     )

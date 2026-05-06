@@ -80,7 +80,7 @@ class AutoEncoder:
                 n_trn = int(n - (n * self.validation_split))
                 self.model_name = (
                     "model-aec_"
-                    f"{self.input_shape[0]}_"
+                    f"{self.patch_size}_"
                     f"{len(self.filters)}_"
                     f"{self.latent_size}_"
                     f"{n_trn}-"
@@ -93,7 +93,7 @@ class AutoEncoder:
                 
                 self.get_model_path()
                 self.load_model_weights()
-                                
+                
         else:
             
             self.load_model_weights()
@@ -118,8 +118,8 @@ class AutoEncoder:
         for f in self.filters:
             x = layers.Conv2D(f, (3, 3), padding="same")(x)
             x = layers.BatchNormalization()(x)
-            # x = layers.Activation("relu")(x)
-            x = layers.LeakyReLU(alpha=0.1)(x)
+            x = layers.Activation("relu")(x)
+            # x = layers.LeakyReLU(alpha=0.1)(x)
             x = layers.MaxPooling2D((2, 2))(x)
     
         x = layers.Flatten()(x)
@@ -150,27 +150,16 @@ class AutoEncoder:
         enc_img = self.model_enc(aec_inputs)
         dec_img = self.model_dec(enc_img)
         
-        self.model_aec = Model(aec_inputs, dec_img, name="autoencoder")
+        self.model = Model(aec_inputs, dec_img, name="autoencoder")
     
         # Compile -------------------------------------------------------------
         
-        self.model_aec.compile(
+        self.model.compile(
             optimizer=Adam(learning_rate=self.learning_rate),
             loss=getattr(metrics, self.loss),
             metrics=[getattr(metrics, self.metric)],
             )
-        
-        # def combined_loss(y_true, y_pred):
-        #     bce = tf.keras.losses.binary_crossentropy(y_true, y_pred)
-        #     dice_loss = 1 - metrics.soft_dice_coef(y_true, y_pred)
-        #     return bce + (15.0 * dice_loss)
-        
-        # self.model_aec.compile(
-        #     optimizer=Adam(learning_rate=self.learning_rate),
-        #     loss=combined_loss,
-        #     metrics=[getattr(metrics, self.metric)],
-        #     )
-                
+                        
 #%% Class(AutoEncoder) train() ------------------------------------------------ 
         
     def train(self, X):
@@ -216,7 +205,7 @@ class AutoEncoder:
         try:
                     
             # Train    
-            self.history = self.model_aec.fit(
+            self.history = self.model.fit(
                 x=self.X_trn_dataset,
                 validation_data=self.X_val_dataset,
                 batch_size=self.batch_size,
@@ -228,7 +217,7 @@ class AutoEncoder:
         # Interrupt
         except KeyboardInterrupt:
             print("Training interrupted.")
-            self.model_aec.stop_training = True
+            self.model.stop_training = True
             for cb in self.callbacks:
                 cb.on_train_end(logs={})
         
@@ -237,6 +226,7 @@ class AutoEncoder:
     def predict(self, X, patch_overlap=None, batch_size=32, chunk_size=None):
     
         self.build()
+        self.load_model_weights()
         
         # Initialize
         if patch_overlap is None:
@@ -254,7 +244,7 @@ class AutoEncoder:
         prds = []
         for arr in X:
             
-            shape = arr.shape[:-1] if multichannel else arr.shape
+            # shape = arr.shape[:-1] if multichannel else arr.shape
             
             # Extract patches
             patches = np.stack(extract_patches(
@@ -273,20 +263,21 @@ class AutoEncoder:
                 for i, idx in enumerate(range(0, len(patches), chunk_size)):
                     chunk = patches[idx:idx + chunk_size]
                     prd.append(
-                        self.model_aec.predict(chunk, batch_size=batch_size))
+                        self.model.predict(chunk, batch_size=batch_size))
                 prd = np.concatenate(prd, axis=0)
                 
                 del chunk
             
             else:
                 
-                prd = self.model_aec.predict(patches, batch_size=batch_size)
+                prd = self.model.predict(patches, batch_size=batch_size)
                 
                 del patches
                 
             # Merge patches
             prd = prd.squeeze()
-            prd = merge_patches(prd, shape, patch_overlap)
+            prd = merge_patches(
+                prd, arr.shape, patch_overlap, multichannel=multichannel)
             prds.append(prd)
     
         return prds if islist else prds[0]
@@ -322,10 +313,10 @@ if __name__ == "__main__":
     
     # Paths
     
-    # dataset = "em_mito"
+    dataset = "em_mito"
     # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
-    dataset = "fluo_nuclei_semantic"
+    # dataset = "fluo_nuclei_semantic"
     # dataset = "sat_roads"
     
     data_path = Path.cwd().parent.parent / "_local" / dataset
@@ -374,30 +365,30 @@ if __name__ == "__main__":
         "model_name"         : None,
 
         # Build
-        "input_shape"        : (32, 32, 1),
-        "filters"            : [32],
-        "latent_size"        : 512,
+        "input_shape"        : (64, 64, 1),
+        "filters"            : [32, 64],
+        "latent_size"        : 256,
         "activation"         : "sigmoid",
-        "loss"               : "mae",
+        "loss"               : "mse",
         "metric"             : "mae",
             
         # Train
         "display"            : 0,
         "epochs"             : 512,
-        "batch_size"         : 16,
+        "batch_size"         : 32,
         "validation_split"   : 0.2,
         "learning_rate"      : 0.0001,
         "patience"           : 128,
 
         # Prepare
-        "patch_size"         : 32,
+        "patch_size"         : 64,
         "patch_overlap"      : 0,
                 
         # Augment
-        "augment_iterations" : 512,
-        "augment_gamma_p"    : 0.0,
-        "augment_gblur_p"    : 0.0,
-        "augment_noise_p"    : 0.0,
+        "augment_iterations" : None,
+        "augment_gamma_p"    : 0.5,
+        "augment_gblur_p"    : 0.5,
+        "augment_noise_p"    : 0.5,
         "augment_flip_p"     : 0.5,
         "augment_distort_p"  : 0.5,
         "augment_params"     : {
@@ -429,23 +420,23 @@ if __name__ == "__main__":
 
         }
     
-    aec = AutoEncoder(parameters=parameters, model_path=None)
-    aec.train(raw_trn)
+    # aec = AutoEncoder(parameters=parameters, model_path=None)
+    # aec.train(raw_trn)
         
 #%% AutoEncoder() Predict() ---------------------------------------------------
     
-    # model_path = Path(Path.cwd(), "model-aec_32_2_512_29920-512")
-    # aec = AutoEncoder(parameters=None, model_path=model_path)
-    # prds = aec.predict(
-    #     raw_trn, patch_overlap=None, batch_size=16, chunk_size=None)
-    
-    # # Display
-    # import napari
-    # vwr = napari.Viewer()
-    # if isinstance(raw_trn, list):
-    #     idx = 2
-    #     vwr.add_image(raw_trn[idx])
-    #     vwr.add_image(prds[idx])
-    # else:
-    #     vwr.add_image(raw_trn)
-    #     vwr.add_image(prds)
+    model_path = Path(Path.cwd(), "model-aec_64_2_256_25344-None")
+    aec = AutoEncoder(parameters=None, model_path=model_path)
+    prds = aec.predict(
+        raw_trn, patch_overlap=None, batch_size=32, chunk_size=None)
+
+    # Display
+    import napari
+    vwr = napari.Viewer()
+    if isinstance(raw_trn, list):
+        idx = 2
+        vwr.add_image(raw_trn[idx])
+        vwr.add_image(prds[idx])
+    else:
+        vwr.add_image(raw_trn)
+        vwr.add_image(prds)
