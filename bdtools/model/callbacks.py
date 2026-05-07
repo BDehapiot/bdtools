@@ -14,12 +14,12 @@ from tensorflow.keras.callbacks import (
 
 class CallBacks(Callback):
     
-    def __init__(self, model):
+    def __init__(self, main):
         super().__init__()
-        self.model = model
-        self.X_trn, self.y_trn = self.model.X_trn, self.model.y_trn
-        self.X_val, self.y_val = self.model.X_val, self.model.y_val
-        self.parameters = model.parameters
+        self.main = main
+        self.X_trn, self.y_trn = self.main.X_trn, self.main.y_trn
+        self.X_val, self.y_val = self.main.X_val, self.main.y_val
+        self.parameters = main.parameters
         for key, val in self.parameters.items():
             setattr(self, key, val)
         
@@ -39,7 +39,7 @@ class CallBacks(Callback):
         
         # Checkpoint
         self.checkpoint = ModelCheckpoint(
-            filepath=self.model.model_path / "weights.keras",
+            filepath=self.main.model_path / "weights.keras",
             save_weights_only=True,
             save_best_only=True,
             monitor="val_loss", 
@@ -53,11 +53,11 @@ class CallBacks(Callback):
             mode="min",
             )
         
-    def set_model(self, mmodel):
-        self.mmodel = mmodel
-        self.checkpoint.set_model(mmodel)
-        self.early_stopping.set_model(mmodel)
-               
+    def set_model(self, model):
+        self.model = model
+        self.checkpoint.set_model(model)
+        self.early_stopping.set_model(model)
+
 #%% Class(CallBacks) : events -------------------------------------------------    
         
     def on_train_begin(self, logs=None):
@@ -130,23 +130,20 @@ class CallBacks(Callback):
         
         # Info
         
-        # /////////////////////////////////////////////////////////////////////
-        
-        if hasattr(self, "backbone"):
+        if self.model_type == "sm":
             var_str = (
                 f"backbone         : {self.backbone}\n"
                 )
-        elif hasattr(self, "filters"):
+        
+        if self.model_type == "aec":
             var_str = (
                 f"filters          : {self.filters }\n"
                 f"latent size      : {self.latent_size}\n"
                 )
         
-        # /////////////////////////////////////////////////////////////////////
-        
         infos = (
             f"input shape      : "
-                f"{'x'.join(str(s) for s in self.model.X_trn.shape)}\n"
+                f"{'x'.join(str(s) for s in self.main.X_trn.shape)}\n"
             f"{var_str}"
             f"batch size       : {self.batch_size}\n"
             f"validation_split : {self.validation_split}\n"
@@ -192,7 +189,7 @@ class CallBacks(Callback):
         
         # Save    
         plt.tight_layout()
-        plt.savefig(self.model.model_path / "train_plot.png", format="png")
+        plt.savefig(self.main.model_path / "train_plot.png", format="png")
         plt.show()
         
 #%% Class(CallBacks) : predict_examples() ------------------------------------- 
@@ -219,16 +216,11 @@ class CallBacks(Callback):
             
             img = self.X_val[idx]
             prd = prds[i]
-            
-            # /////////////////////////////////////////////////////////////////
-                
-            if hasattr(self, "backbone"):
+            if self.model_type == "sm":
                 gtr = self.y_val[idx]
-            elif hasattr(self, "filters"): 
+            if self.model_type == "aec":
                 gtr = self.X_val[idx]
                 
-            # /////////////////////////////////////////////////////////////////
-        
             if img.ndim > 2:
                 if gtr.ndim == 2:
                     gtr = np.tile(gtr[:, :, np.newaxis], (1, 1, nC))
@@ -245,6 +237,6 @@ class CallBacks(Callback):
         
         # Save
         io.imsave(
-            self.model.model_path / "predict_examples.tif",
+            self.main.model_path / "predict_examples.tif",
             examples, check_contrast=False
             )

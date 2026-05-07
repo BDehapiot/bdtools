@@ -267,8 +267,8 @@ if __name__ == "__main__":
     # dataset = "em_mito"
     # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
-    # dataset = "fluo_nuclei_semantic"
-    dataset = "sat_roads"
+    dataset = "fluo_nuclei_semantic"
+    # dataset = "sat_roads"
     
     data_path = Path.cwd().parent.parent / "_local" / dataset
     raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
@@ -310,7 +310,7 @@ if __name__ == "__main__":
         "model_name"         : None,
 
         # Build
-        "input_shape"        : (None, None, 3),
+        "input_shape"        : (None, None, 1),
         "backbone"           : "resnet18",
         "activation"         : "sigmoid",
         "loss"               : "bce",
@@ -365,25 +365,26 @@ if __name__ == "__main__":
 
         }
     
-    unet = UNet(parameters=parameters, model_path=None)
-    unet.train(raw_trn, msk_trn)
+    # unet = UNet(parameters=parameters, model_path=None)
+    # unet.train(raw_trn, msk_trn)
         
 #%% UNet() predict() ----------------------------------------------------------
     
-    # model_path = Path(Path.cwd(), "model-unet_128_binary_1280-None")
-    # unet = UNet(parameters=None, model_path=model_path)
-    # prds = unet.predict(raw_trn)
+    model_path = Path(Path.cwd(), "model-unet_128_binary_2400-None")
+    unet = UNet(parameters=None, model_path=model_path)
+    prds = unet.predict(
+        raw_trn, patch_overlap=64, batch_size=32, chunk_size=256)
     
-    # # Display
-    # import napari
-    # vwr = napari.Viewer()
-    # if isinstance(raw_trn, list):
-    #     idx = 2
-    #     vwr.add_image(raw_trn[idx])
-    #     vwr.add_image(prds[idx])
-    # else:
-    #     vwr.add_image(raw_trn)
-    #     vwr.add_image(prds)
+    # Display
+    import napari
+    vwr = napari.Viewer()
+    if isinstance(raw_trn, list):
+        idx = 2
+        vwr.add_image(raw_trn[idx])
+        vwr.add_image(prds[idx])
+    else:
+        vwr.add_image(raw_trn)
+        vwr.add_image(prds)
     
 #%% UNet() predict_examples() -------------------------------------------------
 

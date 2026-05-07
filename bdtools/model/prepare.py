@@ -1,6 +1,7 @@
 #%% Imports -------------------------------------------------------------------
 
 import numpy as np
+import tensorflow as tf
 
 # bdtools
 from bdtools.augment import augment
@@ -11,10 +12,11 @@ from bdtools.patch import extract_patches
 
 class Prepare:
     
-    def __init__(self, model, X, y=None):
-        self.model = model
+    def __init__(self, main, X, y=None, display=False):
+        self.main = main
         self.X, self.y = X, y
-        self.parameters = model.parameters
+        self.display = display
+        self.parameters = main.parameters
         for key, val in self.parameters.items():
             setattr(self, key, val)
                 
@@ -25,16 +27,21 @@ class Prepare:
         self.split_data()
         if self.augment_iterations is not None:
             self.augment_data()
+        self.tensorize_data()
+        if self.display:
+            self.display_data()
         
-        # Pass data to model class
-        self.model.X = self.X        
-        self.model.X_trn = self.X_trn
-        self.model.X_val = self.X_val
-        self.model.y = self.y
-        self.model.y_trn = self.y_trn
-        self.model.y_val = self.y_val
+        # Pass attributes to main class
+        self.main.X = self.X        
+        self.main.X_trn = self.X_trn
+        self.main.y_trn = self.y_trn
+        self.main.trn_tensor = self.trn_tensor
+        self.main.y = self.y
+        self.main.X_val = self.X_val
+        self.main.y_val = self.y_val
+        self.main.val_tensor = self.val_tensor
     
-#%% Class(Prepare) function(s) ------------------------------------------------
+#%% Class(Prepare) prepare_masks() --------------------------------------------
 
     def prepare_masks(self):
         self.y = process_masks(self.y, method=self.mask_method)
@@ -47,6 +54,8 @@ class Prepare:
         if isinstance(self.y, np.ndarray):
             if not np.issubdtype(self.y.dtype, np.floating):
                 self.y = self.y.astype("float32")
+        
+#%% Class(Prepare) prepare_patches() ------------------------------------------
         
     def prepare_patches(self):
         multichannel = True if self.input_shape[-1] > 1 else False
@@ -74,6 +83,8 @@ class Prepare:
         if self.y is not None: 
             self.y = np.stack(self.y_patches)
 
+#%% Class(Prepare) split_data() -----------------------------------------------
+
     def split_data(self):
         n_total = self.X.shape[0]
         n_val = int(n_total * self.validation_split)
@@ -86,6 +97,8 @@ class Prepare:
         else:
             self.y_trn = None
             self.y_val = None
+            
+#%% Class(Prepare) augment_data() ---------------------------------------------
             
     def augment_data(self):
         self.X_trn, self.y_trn = augment(
@@ -100,8 +113,44 @@ class Prepare:
             distort_p=self.augment_distort_p,
             preserve_range=True,
             )
+        
+#%% Class(Prepare) tensorize_data() -------------------------------------------
 
-#%% Execute -------------------------------------------------------------------
+    def tensorize_data(self):
 
-if __name__ == "__main__":
-    pass
+        # Build training & validation tensors
+        trn_target = self.y_trn if self.y_trn is not None else self.X_trn
+        val_target = self.y_val if self.y_val is not None else self.X_val
+        self.trn_tensor = tf.data.Dataset.from_tensor_slices(
+            (self.X_trn, trn_target))
+        self.val_tensor = tf.data.Dataset.from_tensor_slices(
+            (self.X_val, val_target))
+        
+        # Shuffle training tensors
+        self.trn_tensor = self.trn_tensor.shuffle(
+            buffer_size=min(len(self.X_trn), 1000))
+        
+        # Optimizations
+        self.trn_tensor = (
+            self.trn_tensor
+            .cache()
+            .shuffle(buffer_size=self.X_trn.shape[0])
+            .batch(self.batch_size)
+            .prefetch(tf.data.AUTOTUNE)
+            )
+        self.val_tensor = (
+            self.val_tensor
+            .cache()
+            .batch(self.batch_size)
+            .prefetch(tf.data.AUTOTUNE)
+            )
+
+#%% Class(Prepare) display_data() ---------------------------------------------
+
+    def display_data(self):
+        import napari
+        vwr = napari.Viewer()
+        vwr.add_image(self.X_trn, name="X_trn")
+        if self.y is not None:
+            vwr.add_image(self.y_trn, name="y_trn")
+            vwr.grid.enabled = True
