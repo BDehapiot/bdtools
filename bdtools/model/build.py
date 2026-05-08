@@ -1,5 +1,7 @@
 #%% Imports -------------------------------------------------------------------
 
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  
 import segmentation_models as sm
 
 # bdtools
@@ -96,4 +98,3 @@ class Build:
         dec_img = self.model_dec(enc_img)
         
         self.model = Model(aec_inputs, dec_img, name="autoencoder")
-    

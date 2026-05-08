@@ -1,5 +1,6 @@
 #%% Imports -------------------------------------------------------------------
 
+import sys
 import numpy as np
 import tensorflow as tf
 
@@ -27,9 +28,10 @@ class Prepare:
         self.split_data()
         if self.augment_iterations is not None:
             self.augment_data()
-        self.tensorize_data()
         if self.display:
             self.display_data()
+            sys.exit(0)
+        self.tensorize_data()
         
         # Pass attributes to main class
         self.main.X = self.X        
@@ -105,7 +107,7 @@ class Prepare:
             self.X_trn, 
             msks=self.y_trn, 
             iterations=self.augment_iterations,
-            params=self.augment_params,
+            params=self.augment_parameters,
             gamma_p=self.augment_gamma_p,
             gblur_p=self.augment_gblur_p,
             noise_p=self.augment_noise_p,
@@ -113,6 +115,16 @@ class Prepare:
             distort_p=self.augment_distort_p,
             preserve_range=True,
             )
+                
+#%% Class(Prepare) display_data() ---------------------------------------------
+
+    def display_data(self):
+        import napari
+        vwr = napari.Viewer()
+        vwr.add_image(self.X_trn, name="X_trn")
+        if self.y is not None:
+            vwr.add_image(self.y_trn, name="y_trn")
+            vwr.grid.enabled = True
         
 #%% Class(Prepare) tensorize_data() -------------------------------------------
 
@@ -125,11 +137,7 @@ class Prepare:
             (self.X_trn, trn_target))
         self.val_tensor = tf.data.Dataset.from_tensor_slices(
             (self.X_val, val_target))
-        
-        # Shuffle training tensors
-        self.trn_tensor = self.trn_tensor.shuffle(
-            buffer_size=min(len(self.X_trn), 1000))
-        
+                
         # Optimizations
         self.trn_tensor = (
             self.trn_tensor
@@ -144,13 +152,3 @@ class Prepare:
             .batch(self.batch_size)
             .prefetch(tf.data.AUTOTUNE)
             )
-
-#%% Class(Prepare) display_data() ---------------------------------------------
-
-    def display_data(self):
-        import napari
-        vwr = napari.Viewer()
-        vwr.add_image(self.X_trn, name="X_trn")
-        if self.y is not None:
-            vwr.add_image(self.y_trn, name="y_trn")
-            vwr.grid.enabled = True

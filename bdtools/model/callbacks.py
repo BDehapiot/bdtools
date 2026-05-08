@@ -208,7 +208,7 @@ class CallBacks(Callback):
         # Predict
         idxs = np.random.choice(
             self.X_val.shape[0], size=size, replace=False)
-        prds = self.model.predict(self.X_val[idxs, ...]).squeeze()
+        prds = self.main.predict(self.X_val[idxs, ...]).squeeze()
         
         # Assemble display
         examples = []
@@ -231,7 +231,7 @@ class CallBacks(Callback):
         examples = np.stack(examples)  
         
         # Add borders
-        for i in range(3):
+        for i in range(2):
             examples[:, :, (nX * (i + 1)) - 1, ...] = 1
         examples = (examples * 255).astype("uint8")
         

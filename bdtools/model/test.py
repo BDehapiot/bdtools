@@ -38,7 +38,6 @@ def load_data(dataset="em_mito", display=False):
     # Paths 
     root_path = Path("C:\\Users\\bdeha\\Projects\\bdtools\\_local")
     data_path = root_path / dataset
-    print(data_path)
     X_paths = list(data_path.glob("*raw_trn.tif"))
     y_paths = list(data_path.glob("*msk_trn.tif"))
     

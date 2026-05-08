@@ -3,20 +3,13 @@
 import pickle
 import numpy as np
 from pathlib import Path
-import segmentation_models as sm
 
 # bdtools
 from bdtools.check import Check
-from bdtools.model import metrics
 from bdtools.model.build import Build 
 from bdtools.model.prepare import Prepare
 from bdtools.model.callbacks import CallBacks
 from bdtools.patch import extract_patches, merge_patches
-
-# tensorflow
-import tensorflow as tf
-from tensorflow.keras import layers, Model
-from tensorflow.keras.optimizers import Adam
 
 #%% Parameters ----------------------------------------------------------------
 
@@ -32,17 +25,17 @@ parameters = {
     "model_type"         : "aec",
     "input_shape"        : (None, None, 1),
     "backbone"           : "resnet18", # (sm)
-    "filters"            : [32, 64], # (sm)
-    "latent_size"        : 256, # (aec)
+    "filters"            : [32, 64, 128], # (aec)
+    "latent_size"        : 128, # (aec)
     "activation"         : "sigmoid",
     "loss"               : "mse",
     "metric"             : "mae",
     
     # Prepare -----------------------------------------------------------------
     
-    "patch_size"         : 64,
-    "patch_overlap"      : 0,
-    "mask_method"        : "binary", # (sm)
+    "patch_size"         : 32,
+    "patch_overlap"      : 16,
+    "mask_method"        : "edt", # (sm)
 
     # Train -------------------------------------------------------------------
     
@@ -56,9 +49,9 @@ parameters = {
     # Augment -----------------------------------------------------------------
     
     "augment_iterations" : None,
-    "augment_gamma_p"    : 0.5,
-    "augment_gblur_p"    : 0.5,
-    "augment_noise_p"    : 0.5,
+    "augment_gamma_p"    : 0.0,
+    "augment_gblur_p"    : 0.0,
+    "augment_noise_p"    : 0.0,
     "augment_flip_p"     : 0.5,
     "augment_distort_p"  : 0.5,
     
@@ -90,6 +83,13 @@ parameters = {
     },
 
     }
+
+#%% Comments ------------------------------------------------------------------
+
+"""
+- Make tensors for predictions as well?
+
+"""
     
 #%% Class(Main) ---------------------------------------------------------------
 
@@ -102,7 +102,7 @@ class Main:
         # Run
         self.initialize()
 
-#%% Class(Main) Function(s) ---------------------------------------------------
+#%% Class(Main) function(s) ---------------------------------------------------
 
     def get_parameters(self):
         for key, val in self.parameters.items():
@@ -194,7 +194,7 @@ class Main:
         with open(self.model_path / "parameters.pkl", "wb") as file:
             pickle.dump(self.parameters, file)
                     
-#%% Class(UNet) train() -------------------------------------------------------
+#%% Class(Main) train() -------------------------------------------------------
 
     def train(self, X, y=None):
         
@@ -235,6 +235,92 @@ class Main:
             self.model.stop_training = True
             for cb in self.callbacks:
                 cb.on_train_end(logs={})
+                
+#%% Class(Main) predict() -----------------------------------------------------
+
+    def predict(
+            self, X, 
+            patch_overlap=None, 
+            batch_size=32, 
+            chunk_size=None, 
+            latent=False
+            ):
+        
+        # Build
+        Build(self, model_type=self.model_type)
+        self.load_model_weights()
+        
+        # Select model
+        if latent and self.model_type == "aec":
+            model = self.model_enc
+        else:
+            model = self.model
+        
+        # Initialize
+        if patch_overlap is None:
+            patch_overlap = self.patch_size // 2
+        if self.input_shape[-1] > 1:
+            multichannel_in = True
+            if self.model_type == "sm":
+                multichannel_out = False
+            if self.model_type == "aec":
+                multichannel_out = True
+        else:
+            multichannel_in = False
+            multichannel_out = False
+        Check(X, name="X", ctype=(np.ndarray, list), dtype=float, vrange=(0, 1))
+        
+        # Convert X to list
+        if isinstance(X, list):
+            islist = True
+        else:
+            islist = False
+            X = [X]
+            
+        prds = []
+        for arr in X:
+            
+            if self.model_type == "sm" and multichannel_in:
+                shape = arr.shape[:-1] 
+            else:
+                shape = arr.shape
+            
+            # Extract patches
+            patches = np.stack(extract_patches(
+                arr, self.patch_size, patch_overlap, 
+                multichannel=multichannel_in
+                ))
+        
+            # Predict
+            
+            if chunk_size:
+                
+                n_chunks = int(np.ceil(patches.shape[0] / chunk_size))
+                print(f"n_chunks = {n_chunks}")
+                
+                prd = []
+                for i, idx in enumerate(range(0, len(patches), chunk_size)):
+                    chunk = patches[idx:idx + chunk_size]
+                    prd.append(model.predict(chunk, batch_size=batch_size))
+                prd = np.concatenate(prd, axis=0)
+                
+                del chunk
+            
+            else:
+                
+                prd = model.predict(patches, batch_size=batch_size)
+                
+                del patches
+                
+            # Merge patches
+            if latent and self.model_type == "aec":
+                prds.append(prd)
+            else:
+                prd = merge_patches(
+                    prd, shape, patch_overlap, multichannel=multichannel_out)
+                prds.append(prd)
+    
+        return prds if islist else prds[0]
 
 #%% Execute -------------------------------------------------------------------
 
@@ -245,34 +331,32 @@ if __name__ == "__main__":
     # Paths
     # dataset = "em_mito"
     # dataset = "fluo_tissue"
-    # dataset = "fluo_nuclei_instance"
-    dataset = "fluo_nuclei_semantic"
+    dataset = "fluo_nuclei_instance"
+    # dataset = "fluo_nuclei_semantic"
     # dataset = "sat_roads"
     
     # Load data
     X, y = load_data(dataset)
     
-#%% UNet() train() ------------------------------------------------------------
+    # train() -----------------------------------------------------------------
         
-    main = Main(parameters=parameters, model_path=None)
-    main.train(X, y=y)
+    # main = Main(parameters=parameters, model_path=None)
+    # main.train(X, y=None)
         
-#%% UNet() predict() ----------------------------------------------------------
+    # predict() ---------------------------------------------------------------
     
-    # model_path = Path(Path.cwd(), "model-unet_128_binary_2400-None")
-    # unet = UNet(parameters=None, model_path=model_path)
-    # prds = unet.predict(
-    #     X, patch_overlap=64, batch_size=32, chunk_size=256)
+    model_path = Path(Path.cwd(), "model-aec_32_3_128_2252-None")
+    main = Main(parameters=None, model_path=model_path)
+    prds = main.predict(
+        X, patch_overlap=None, batch_size=32, chunk_size=None, latent=False)
     
-    # # Display
-    # import napari
-    # vwr = napari.Viewer()
-    # if isinstance(raw_trn, list):
-    #     idx = 2
-    #     vwr.add_image(X[idx])
-    #     vwr.add_image(prds[idx])
-    # else:
-    #     vwr.add_image(X)
-    #     vwr.add_image(prds)
-
-        
+    # Display
+    import napari
+    vwr = napari.Viewer()
+    if isinstance(X, list):
+        idx = 0
+        # vwr.add_image(X[idx])
+        vwr.add_image(prds[idx])
+    else:
+        # vwr.add_image(X)
+        vwr.add_image(prds)
