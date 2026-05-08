@@ -91,9 +91,9 @@ parameters = {
 
 """
     
-#%% Class(Main) ---------------------------------------------------------------
+#%% Class(Model) ---------------------------------------------------------------
 
-class Main:
+class Model:
     
     def __init__(self, parameters=None, model_path=None):
         self.parameters = parameters
@@ -102,7 +102,7 @@ class Main:
         # Run
         self.initialize()
 
-#%% Class(Main) function(s) ---------------------------------------------------
+#%% Class(Model) function(s) ---------------------------------------------------
 
     def get_parameters(self):
         for key, val in self.parameters.items():
@@ -119,7 +119,7 @@ class Main:
             print(f"({self.model_path.name}) : load weights ")
             self.model.load_weights(self.weights_path)
         
-#%% Class(Main) initialize() --------------------------------------------------
+#%% Class(Model) initialize() --------------------------------------------------
 
     def initialize(self):
         
@@ -194,7 +194,7 @@ class Main:
         with open(self.model_path / "parameters.pkl", "wb") as file:
             pickle.dump(self.parameters, file)
                     
-#%% Class(Main) train() -------------------------------------------------------
+#%% Class(Model) train() -------------------------------------------------------
 
     def train(self, X, y=None):
         
@@ -236,7 +236,7 @@ class Main:
             for cb in self.callbacks:
                 cb.on_train_end(logs={})
                 
-#%% Class(Main) predict() -----------------------------------------------------
+#%% Class(Model) predict() -----------------------------------------------------
 
     def predict(
             self, X, 
@@ -340,23 +340,23 @@ if __name__ == "__main__":
     
     # train() -----------------------------------------------------------------
         
-    # main = Main(parameters=parameters, model_path=None)
-    # main.train(X, y=None)
+    model = Model(parameters=parameters, model_path=None)
+    model.train(X, y=None)
         
     # predict() ---------------------------------------------------------------
     
-    model_path = Path(Path.cwd(), "model-aec_32_3_128_2252-None")
-    main = Main(parameters=None, model_path=model_path)
-    prds = main.predict(
-        X, patch_overlap=None, batch_size=32, chunk_size=None, latent=False)
+    # model_path = Path(Path.cwd(), "model-aec_32_3_128_2252-None")
+    # model = Model(parameters=None, model_path=model_path)
+    # prds = model.predict(
+    #     X, patch_overlap=None, batch_size=32, chunk_size=None, latent=False)
     
-    # Display
-    import napari
-    vwr = napari.Viewer()
-    if isinstance(X, list):
-        idx = 0
-        # vwr.add_image(X[idx])
-        vwr.add_image(prds[idx])
-    else:
-        # vwr.add_image(X)
-        vwr.add_image(prds)
+    # # Display
+    # import napari
+    # vwr = napari.Viewer()
+    # if isinstance(X, list):
+    #     idx = 0
+    #     # vwr.add_image(X[idx])
+    #     vwr.add_image(prds[idx])
+    # else:
+    #     # vwr.add_image(X)
+    #     vwr.add_image(prds)
