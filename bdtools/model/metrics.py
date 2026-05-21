@@ -2,7 +2,7 @@
 
 from tensorflow.keras import backend as K
 
-#%% Function(s): metrics ------------------------------------------------------
+#%% Function(s): loss ---------------------------------------------------------
 
 def mse(y_true, y_pred):
     
@@ -49,10 +49,62 @@ def bce(y_true, y_pred):
     
     return K.mean(K.binary_crossentropy(y_true, y_pred))
 
+def cce(y_true, y_pred):
+    
+    """
+    Categorical Cross-Entropy (CCE)
+    -------------------------
+    
+    Measures the cross-entropy loss between true labels (one-hot) 
+    and predicted probabilities.
+    
+    """
+    return K.mean(K.categorical_crossentropy(y_true, y_pred))
+
+def scce(y_true, y_pred):
+    
+    """
+    Sparse Categorical Cross-Entropy (SCCE)
+    --------------------------------
+    
+    Measures loss when labels are provided as integers.
+    """
+    return K.mean(K.sparse_categorical_crossentropy(y_true, y_pred))
+
+#%% Function(s): accuracy -----------------------------------------------------
+
+from tensorflow.keras.metrics import (
+    categorical_accuracy, sparse_categorical_accuracy)
+
+def acc(y_true, y_pred):
+    
+    """
+    Accuracy (ACC)
+    --------
+    
+    Calculates the mean accuracy rate across all predictions.
+    Assumes one-hot encoded labels.
+    
+    """
+    return K.mean(categorical_accuracy(y_true, y_pred))
+
+def sacc(y_true, y_pred):
+    
+    """
+    Sparse Accuracy (SACC)
+    ---------------
+    
+    Calculates the mean accuracy rate for integer-encoded labels.
+    
+    """
+    return K.mean(sparse_categorical_accuracy(y_true, y_pred))
+
+#%% Function(s): segmentation -------------------------------------------------
+
 def hdc(y_true, y_pred, threshold=0.5, smooth=1e-6):
     
     """
-    Hard Dice Coefficient
+    Hard Dice Coefficient (HDC)
     ---------------------
     
     Measures overlap after thresholding inputs.
@@ -67,10 +119,10 @@ def hdc(y_true, y_pred, threshold=0.5, smooth=1e-6):
     
     return (2. * intersection + smooth) / (K.sum(y_true_bin) + K.sum(y_pred_bin) + smooth)
 
-def soft_dice_coef(y_true, y_pred, smooth=1e-6):
+def sdc(y_true, y_pred, smooth=1e-6):
     
     """
-    Soft Dice Coefficient
+    Soft Dice Coefficient (SDE)
     ---------------------
     
     Measures overlap on probability maps without thresholding.

@@ -165,17 +165,6 @@ class Model:
                         f"{self.augment_iterations}"
                         )
                     
-                if self.model_type == "cls":
-                    
-                    self.model_name = (
-                        "model-aec_"
-                        f"{self.patch_size}_"
-                        f"{len(self.filters)}_"
-                        f"{self.n_class}_"
-                        f"{n_trn}-"
-                        f"{self.augment_iterations}"
-                        )
-                    
                 if self.model_type == "aec":
                     
                     self.model_name = (
@@ -324,17 +313,10 @@ class Model:
                 
                 del patches
                 
-            # Append predictions
-            
-            if self.model_type == "cls":
+            # Merge patches
+            if latent and self.model_type == "aec":
                 prds.append(prd)
-            
-            elif latent and self.model_type == "aec":
-                prds.append(prd)
-            
             else:
-                
-                # Merge patches
                 prd = merge_patches(
                     prd, shape, patch_overlap, multichannel=multichannel_out)
                 prds.append(prd)

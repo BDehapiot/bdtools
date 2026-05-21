@@ -1,6 +1,7 @@
 #%% Imports -------------------------------------------------------------------
 
 import time
+import tifffile
 import numpy as np
 from skimage import io
 import matplotlib.pyplot as plt
@@ -236,7 +237,13 @@ class CallBacks(Callback):
         examples = (examples * 255).astype("uint8")
         
         # Save
-        io.imsave(
+        if nC == 1:
+            axes = "ZYX"
+        else:
+            axes = "ZCYX"
+            examples = np.transpose(examples, (0, 3, 1, 2))
+        tifffile.imwrite(
             self.main.model_path / "predict_examples.tif",
-            examples, check_contrast=False
+            examples, imagej=True, metadata={"axes": axes},
             )
+            

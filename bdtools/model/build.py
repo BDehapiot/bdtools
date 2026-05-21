@@ -25,6 +25,8 @@ class Build:
         # Run
         if self.model_type == "sm":
             self.build_sm()
+        if self.model_type == "cls":
+            self.build_cls()
         if self.model_type == "aec":
             self.build_aec()
             
@@ -53,6 +55,35 @@ class Build:
             encoder_weights=None,
             )
             
+#%% Class(Build) build_cls() --------------------------------------------------
+
+    def build_cls(self):
+        
+        # Input layer
+        inputs = layers.Input(shape=self.input_shape)
+        x = inputs
+        
+        # Encoder 
+        for f in self.filters:
+            x = layers.Conv2D(f, (3, 3), padding="same")(x)
+            x = layers.BatchNormalization()(x)
+            x = layers.Activation("relu")(x)
+            x = layers.MaxPooling2D((2, 2))(x)
+            
+        # Classification head
+        x = layers.GlobalAveragePooling2D()(x)
+        
+        # Add dense layer (learn non-linearities)
+        x = layers.Dense(self.filters[-1] // 2, activation="relu")(x)
+
+        # Add dropout (avoid overfitting)
+        x = layers.Dropout(0.3)(x)
+                
+        # Output layer
+        outputs = layers.Dense(self.n_class, activation="softmax")(x)
+        
+        self.model = Model(inputs, outputs, name="classifier")
+        
 #%% Class(Build) build_aec() --------------------------------------------------
 
     def build_aec(self):
@@ -66,7 +97,6 @@ class Build:
             x = layers.Conv2D(f, (3, 3), padding="same")(x)
             x = layers.BatchNormalization()(x)
             x = layers.Activation("relu")(x)
-            # x = layers.LeakyReLU(alpha=0.1)(x)
             x = layers.MaxPooling2D((2, 2))(x)
     
         x = layers.Flatten()(x)
