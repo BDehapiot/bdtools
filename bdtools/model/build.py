@@ -51,7 +51,7 @@ class Build:
             self.backbone, 
             input_shape=self.input_shape,
             classes=1, # Parameter
-            activation=self.activation,
+            activation="sigmoid",
             encoder_weights=None,
             )
             
@@ -117,7 +117,7 @@ class Build:
             x = layers.Conv2D(f, (3, 3), activation="relu", padding="same")(x)
     
         dec_outputs = layers.Conv2D(
-            self.input_shape[-1], (3, 3), activation=self.activation, padding="same")(x)
+            self.input_shape[-1], (3, 3), activation="sigmoid", padding="same")(x)
         
         self.model_dec = Model(dec_inputs, dec_outputs, name="decoder")
     

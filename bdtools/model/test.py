@@ -99,4 +99,4 @@ if __name__ == "__main__":
     dataset = "chess_class"
     
     # Load data
-    X, y = load_data(dataset, display=True)
+    X, y = load_data(dataset, display=False)

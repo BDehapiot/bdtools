@@ -22,20 +22,19 @@ parameters = {
 
     # Build -------------------------------------------------------------------
     
-    "model_type"         : "aec",
-    "input_shape"        : (None, None, 1),
+    "model_type"         : "cls",
+    "input_shape"        : (None, None, 3),
     "backbone"           : "resnet18", # (sm)
-    "filters"            : [32, 64, 128], # (cls & aec)
-    "n_class"            : 6, # (cls)
+    "filters"            : [16, 32], # (cls & aec)
+    "n_class"            : 12, # (cls)
     "latent_size"        : 128, # (aec)
-    "activation"         : "sigmoid",
-    "loss"               : "mse",
-    "metric"             : "mae",
+    "loss"               : "cce",
+    "metric"             : "acc",
     
     # Prepare -----------------------------------------------------------------
     
-    "patch_size"         : 32,
-    "patch_overlap"      : 16,
+    "patch_size"         : 640,
+    "patch_overlap"      : 0,
     "mask_method"        : "edt", # (sm)
 
     # Train -------------------------------------------------------------------
@@ -89,6 +88,7 @@ parameters = {
 
 """
 - Make tensors for predictions as well?
+- augment() is not implemented for model_type == "cls"
 
 """
     
@@ -350,9 +350,10 @@ if __name__ == "__main__":
     # Paths
     # dataset = "em_mito"
     # dataset = "fluo_tissue"
-    dataset = "fluo_nuclei_instance"
+    # dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
     # dataset = "sat_roads"
+    dataset = "chess_class"
     
     # Load data
     X, y = load_data(dataset)
@@ -360,7 +361,9 @@ if __name__ == "__main__":
     # train() -----------------------------------------------------------------
         
     model = Model(parameters=parameters, model_path=None)
-    model.train(X, y=None)
+    model.train(X, y=y)
+    
+    
         
     # predict() ---------------------------------------------------------------
     

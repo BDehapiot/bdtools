@@ -2,12 +2,22 @@
 
 import sys
 import numpy as np
-import tensorflow as tf
 
 # bdtools
 from bdtools.augment import augment
 from bdtools.mask import process_masks
 from bdtools.patch import extract_patches
+
+# tensorflow
+import tensorflow as tf
+from tensorflow.keras.utils import to_categorical
+
+#%% Comments ------------------------------------------------------------------
+
+"""
+- patching is not implemented for model_type == "cls"
+- augment() is not implemented for model_type == "cls"
+"""
 
 #%% Class(Prepare) ------------------------------------------------------------
 
@@ -46,21 +56,32 @@ class Prepare:
 #%% Class(Prepare) prepare_masks() --------------------------------------------
 
     def prepare_masks(self):
-        self.y = process_masks(self.y, method=self.mask_method)
-        if isinstance(self.y, list):
-            self.y = [
-                arr.astype("float32") 
-                if not np.issubdtype(arr.dtype, np.floating) 
-                else arr for arr in self.y
-                ]
-        if isinstance(self.y, np.ndarray):
-            if not np.issubdtype(self.y.dtype, np.floating):
-                self.y = self.y.astype("float32")
+        
+        if self.main.model_type == "sm":
+        
+            self.y = process_masks(self.y, method=self.mask_method)
+            
+            if isinstance(self.y, list):
+                self.y = [
+                    arr.astype("float32") 
+                    if not np.issubdtype(arr.dtype, np.floating) 
+                    else arr for arr in self.y
+                    ]
+                
+            if isinstance(self.y, np.ndarray):
+                if not np.issubdtype(self.y.dtype, np.floating):
+                    self.y = self.y.astype("float32")
+                    
+        if self.main.model_type == "cls":
+            
+            self.y = to_categorical(self.y, num_classes=self.main.n_class)
         
 #%% Class(Prepare) prepare_patches() ------------------------------------------
         
     def prepare_patches(self):
+        
         multichannel = True if self.input_shape[-1] > 1 else False
+        
         if isinstance(self.X, list):
             self.X_patches = []
             for arr_X in self.X:
@@ -69,21 +90,26 @@ class Prepare:
                     multichannel=multichannel
                     )
             if self.y is not None:  
-                self.y_patches = []
-                for arr_y in self.y:
-                    self.y_patches += extract_patches(
-                        arr_y, self.patch_size, self.patch_overlap)
+                if not self.main.model_type == "cls":
+                    self.y_patches = []
+                    for arr_y in self.y:
+                        self.y_patches += extract_patches(
+                            arr_y, self.patch_size, self.patch_overlap)
+        
         if isinstance(self.X, np.ndarray):
             self.X_patches = extract_patches(
                 self.X, self.patch_size, self.patch_overlap, 
                 multichannel=multichannel
                 )
             if self.y is not None: 
-                self.y_patches = extract_patches(
-                    self.y, self.patch_size, self.patch_overlap)
+                if not self.main.model_type == "cls":
+                    self.y_patches = extract_patches(
+                        self.y, self.patch_size, self.patch_overlap)
+        
         self.X = np.stack(self.X_patches)
         if self.y is not None: 
-            self.y = np.stack(self.y_patches)
+            if not self.main.model_type == "cls":
+                self.y = np.stack(self.y_patches)
 
 #%% Class(Prepare) split_data() -----------------------------------------------
 
@@ -99,6 +125,11 @@ class Prepare:
         else:
             self.y_trn = None
             self.y_val = None
+            
+        print(self.X_trn.shape)
+        print(self.X_val.shape)
+        print(self.y_trn.shape)
+        print(self.y_val.shape)
             
 #%% Class(Prepare) augment_data() ---------------------------------------------
             
@@ -129,10 +160,11 @@ class Prepare:
 #%% Class(Prepare) tensorize_data() -------------------------------------------
 
     def tensorize_data(self):
-
+        
         # Build training & validation tensors
         trn_target = self.y_trn if self.y_trn is not None else self.X_trn
         val_target = self.y_val if self.y_val is not None else self.X_val
+        
         self.trn_tensor = tf.data.Dataset.from_tensor_slices(
             (self.X_trn, trn_target))
         self.val_tensor = tf.data.Dataset.from_tensor_slices(
