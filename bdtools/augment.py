@@ -51,8 +51,9 @@ def augment(
     imgs : 3D, 4D ndarray (int, float)
         Input image(s).
         
-    msks (optional) : 3D ndarray (float) 
+    msks (optional) : 1D (int) or 3D ndarray (float) 
         Input corresponding mask(s).
+        Pass 1D ndarray of int for object classification.
         Pass None to only transform images without masks.
         
     iterations : int
@@ -66,7 +67,7 @@ def augment(
     imgs : 3D, 4D ndarray (float)
         Augmented image(s).
         
-    msks (optional) : 3D ndarray (float) 
+    msks (optional) : 1D (int) or 3D ndarray (float) 
         Augmented corresponding mask(s).
     
     """
@@ -286,103 +287,62 @@ def augment(
         return img, msk
         
     # Execute -----------------------------------------------------------------
-    
+       
     # Initialize
     imgs = imgs.astype("float32")
     idxs = np.random.choice(
         np.arange(0, imgs.shape[0]), size=iterations)
+    if isinstance(msks, np.ndarray) and msks.ndim == 1:
+        clss = msks[idxs]
+        msks = None
 
+    # Augment
     outputs = Parallel(n_jobs=-1, backend="threading")(
             delayed(_augment)(imgs[i], msks[i] if msks is not None else None)
             for i in idxs
             )
     
+    # output(s)
     imgs = np.stack([data[0] for data in outputs])
     if msks is not None:
         msks = np.stack([data[1] for data in outputs])
         return imgs, msks
-        
+    if "clss" in locals():
+        return imgs, clss
     return imgs, None
 
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
     
-    # Imports
-    import time
-    import napari
-    from skimage import io
-    from pathlib import Path
-    from skimage.measure import label
-    from bdtools.mask import process_masks
-    
-    # -------------------------------------------------------------------------
-    
-    def load_data(paths):
-        data = []
-        for path in paths:
-            data.append(io.imread(path))
-        if len(data) == 1:
-            data = np.stack(data).squeeze()
-        return data
-    
-    def prep_mask(msk):
-        msk_1 = label(msk == 1)
-        msk_2 = label(msk == 2)
-        msk_3 = label(msk == 3)
-        msk_2[msk_2 > 0] += np.max(msk_1)
-        msk_3[msk_3 > 0] += np.max(msk_2)
-        return msk_1 + msk_2 + msk_3
-    
-    # Load --------------------------------------------------------------------
+    from bdtools.test import load_data
     
     # Paths
-    
     # dataset = "em_mito"
+    # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
     # dataset = "fluo_nuclei_semantic"
     dataset = "sat_roads"
-    
-    data_path = Path.cwd().parent / "_local" / dataset
-    raw_trn_paths = list(data_path.rglob("*raw_trn.tif"))
-    msk_trn_paths = list(data_path.rglob("*msk_trn.tif"))
+    # dataset = "chess_class"
     
     # Load data
-    raw_trn = load_data(raw_trn_paths)
-    msk_trn = load_data(msk_trn_paths)
-    if "nuclei_semantic" in dataset:
-        msk_trn = prep_mask(msk_trn)
-        
-    # Display -----------------------------------------------------------------
-    
-    # vwr = napari.Viewer()
-    # if isinstance(raw_trn, list):
-    #     idx = 2
-    #     vwr.add_image(raw_trn[idx])
-    #     vwr.add_image(msk_trn[idx])
-    # else:
-    #     vwr.add_image(raw_trn)
-    #     vwr.add_image(msk_trn)
-        
-    # Normalization -----------------------------------------------------------
-            
-    if "sat_roads" in dataset:
-        raw_trn = raw_trn.astype("float32") / 255
-    else:
-        raw_trn = norm_pct(
-            raw_trn, pct_low=0.01, pct_high=99.9, sample_fraction=1)
+    X, y = load_data(dataset)
       
 #%% augment() -----------------------------------------------------------------
     
+    # Imports
+    import time
+    from bdtools.mask import process_masks
+
     # Parameters
-    msks = None
+    y = y
     msk_method = "binary"
-    iterations  = 500
-    gamma_p     = 0.5
-    gblur_p     = 0.5
-    noise_p     = 0.5
-    flip_p      = 0.5
-    distort_p   = 0.5
+    iterations = 500
+    gamma_p    = 0.5
+    gblur_p    = 0.5
+    noise_p    = 0.5
+    flip_p     = 0.5
+    distort_p  = 0.5
            
     # -------------------------------------------------------------------------
     
@@ -421,8 +381,9 @@ if __name__ == "__main__":
     print("prepare_masks() : ", end="", flush=True)
     t0 = time.time()
     
-    if msks is not None:
-        msk_trn = process_masks(msk_trn, method=msk_method).astype("float32")
+    if y is not None:
+        if isinstance(y, np.ndarray) and y.ndim > 1:
+            y = process_masks(y, method=msk_method).astype("float32")
     
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
@@ -434,9 +395,9 @@ if __name__ == "__main__":
     t0 = time.time()
     
     outputs = augment(
-        raw_trn, 
+        X, 
         iterations=iterations,
-        msks=msks, 
+        msks=y, 
         params=params,
         gamma_p=gamma_p, 
         gblur_p=gblur_p, 
@@ -446,39 +407,44 @@ if __name__ == "__main__":
         preserve_range=True,
         )
     
-    if msks is not None:
-        raw_trn_aug, msk_trn_aug = outputs
+    if y is not None:
+        X_aug, y_aug = outputs
     else:
-        raw_trn_aug = outputs
+        X_aug = outputs
     
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")
     
-    # -------------------------------------------------------------------------
+    # Stats -------------------------------------------------------------------
     
     print("---")
-    print(f"avg = {np.mean(raw_trn):.3f}")
-    print(f"std = {np.std(raw_trn):.3f}")
-    print(f"min = {np.min(raw_trn):.3f}")
-    print(f"max = {np.max(raw_trn):.3f}")
+    print(f"avg = {np.mean(X):.3f}")
+    print(f"std = {np.std(X):.3f}")
+    print(f"min = {np.min(X):.3f}")
+    print(f"max = {np.max(X):.3f}")
     print("---")
-    print(f"aug avg = {np.mean(raw_trn_aug):.3f}")
-    print(f"aug std = {np.std(raw_trn_aug):.3f}")
-    print(f"aug min = {np.min(raw_trn_aug):.3f}")
-    print(f"aug max = {np.max(raw_trn_aug):.3f}")
+    print(f"aug avg = {np.mean(X_aug):.3f}")
+    print(f"aug std = {np.std(X_aug):.3f}")
+    print(f"aug min = {np.min(X_aug):.3f}")
+    print(f"aug max = {np.max(X_aug):.3f}")
         
     # Display -----------------------------------------------------------------
     
-    viewer = napari.Viewer()
+    import napari
+    
+    vwr = napari.Viewer()
     contrast_limits = [
-        np.percentile(raw_trn_aug, 0.01),
-        np.percentile(raw_trn_aug, 99.99),
+        np.percentile(X_aug, 0.01),
+        np.percentile(X_aug, 99.99),
         ]
-    viewer.add_image(
-        raw_trn_aug, visible=1,
+    if y is not None:
+        if isinstance(y, np.ndarray) and y.ndim > 1:
+            vwr.add_labels(
+                y_aug.astype("uint8"), name="y_aug", visible=1,
+                )
+            vwr.grid.enabled = True
+    vwr.add_image(
+        X_aug, name="X_aug", visible=1,
         contrast_limits=contrast_limits,
         )
-    if msks is not None:
-        viewer.add_labels(
-            msk_trn_aug.astype("uint8"), visible=0,
-            )
+    vwr.reset_view()

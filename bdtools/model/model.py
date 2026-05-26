@@ -25,7 +25,7 @@ parameters = {
     "model_type"         : "cls",
     "input_shape"        : (None, None, 3),
     "backbone"           : "resnet18", # (sm)
-    "filters"            : [16, 32], # (cls & aec)
+    "filters"            : [64, 128], # (cls & aec)
     "n_class"            : 12, # (cls)
     "latent_size"        : 128, # (aec)
     "loss"               : "cce",
@@ -33,7 +33,7 @@ parameters = {
     
     # Prepare -----------------------------------------------------------------
     
-    "patch_size"         : 640,
+    "patch_size"         : 160,
     "patch_overlap"      : 0,
     "mask_method"        : "edt", # (sm)
 
@@ -41,14 +41,14 @@ parameters = {
     
     "display"            : 0,
     "epochs"             : 512,
-    "batch_size"         : 32,
+    "batch_size"         : 16,
     "validation_split"   : 0.2,
-    "learning_rate"      : 0.0001,
+    "learning_rate"      : 0.001,
     "patience"           : 128,
 
     # Augment -----------------------------------------------------------------
     
-    "augment_iterations" : None,
+    "augment_iterations" : 1024,
     "augment_gamma_p"    : 0.0,
     "augment_gblur_p"    : 0.0,
     "augment_noise_p"    : 0.0,
@@ -64,7 +64,7 @@ parameters = {
     
     # Gaussian blur
     "gblur_sigma_low"    : 1,
-    "gblur_sigma_high"   : 3,
+    "gblur_sigma_high"   : 2,
     "gblur_chn"          : "shared",
     
     # Noise
@@ -168,7 +168,7 @@ class Model:
                 if self.model_type == "cls":
                     
                     self.model_name = (
-                        "model-aec_"
+                        "model-cls_"
                         f"{self.patch_size}_"
                         f"{len(self.filters)}_"
                         f"{self.n_class}_"
@@ -345,7 +345,8 @@ class Model:
 
 if __name__ == "__main__":
     
-    from bdtools.model.test import load_data
+    from bdtools.test import load_data
+    from skimage.transform import downscale_local_mean, resize
     
     # Paths
     # dataset = "em_mito"
@@ -358,27 +359,32 @@ if __name__ == "__main__":
     # Load data
     X, y = load_data(dataset)
     
-    # train() -----------------------------------------------------------------
+    # Downscale (optional)
+    if dataset == "chess_class":
+        X = downscale_local_mean(X, (1, 4, 4, 1))
+    
+#%% train() -------------------------------------------------------------------
+    
+    # model = Model(parameters=parameters, model_path=None)
+    # model.train(X, y=y)    
+
+#%% predict() -----------------------------------------------------------------
         
-    model = Model(parameters=parameters, model_path=None)
-    model.train(X, y=y)
+    model_path = Path(Path.cwd(), "model-cls_160_2_12_240-1024")
+    model = Model(parameters=None, model_path=model_path)
+    prds = model.predict(
+        X, patch_overlap=None, batch_size=32, chunk_size=None, latent=False)
     
+    if dataset == "chess_class":
+        prds = resize(prds, (prds.shape[0] / 10, prds.shape[1] * 10))
     
-        
-    # predict() ---------------------------------------------------------------
-    
-    # model_path = Path(Path.cwd(), "model-aec_32_3_128_2252-None")
-    # model = Model(parameters=None, model_path=model_path)
-    # prds = model.predict(
-    #     X, patch_overlap=None, batch_size=32, chunk_size=None, latent=False)
-    
-    # # Display
-    # import napari
-    # vwr = napari.Viewer()
-    # if isinstance(X, list):
-    #     idx = 0
-    #     # vwr.add_image(X[idx])
-    #     vwr.add_image(prds[idx])
-    # else:
-    #     # vwr.add_image(X)
-    #     vwr.add_image(prds)
+    # Display
+    import napari
+    vwr = napari.Viewer()
+    if isinstance(X, list):
+        idx = 0
+        # vwr.add_image(X[idx])
+        vwr.add_image(prds[idx])
+    else:
+        # vwr.add_image(X)
+        vwr.add_image(prds)

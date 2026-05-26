@@ -71,11 +71,7 @@ class Prepare:
             if isinstance(self.y, np.ndarray):
                 if not np.issubdtype(self.y.dtype, np.floating):
                     self.y = self.y.astype("float32")
-                    
-        if self.main.model_type == "cls":
-            
-            self.y = to_categorical(self.y, num_classes=self.main.n_class)
-        
+                            
 #%% Class(Prepare) prepare_patches() ------------------------------------------
         
     def prepare_patches(self):
@@ -126,14 +122,16 @@ class Prepare:
             self.y_trn = None
             self.y_val = None
             
-        print(self.X_trn.shape)
-        print(self.X_val.shape)
-        print(self.y_trn.shape)
-        print(self.y_val.shape)
+        print("X_trn.shape =", self.X_trn.shape)
+        print("X_val.shape =", self.X_val.shape)
+        if self.y is not None:  
+            print("y_trn.shape =", self.y_trn.shape)
+            print("y_val.shape =", self.y_val.shape)
             
 #%% Class(Prepare) augment_data() ---------------------------------------------
             
     def augment_data(self):
+        
         self.X_trn, self.y_trn = augment(
             self.X_trn, 
             msks=self.y_trn, 
@@ -146,17 +144,23 @@ class Prepare:
             distort_p=self.augment_distort_p,
             preserve_range=True,
             )
-                
+        
+        if self.main.model_type == "cls":
+            self.y_trn = to_categorical(
+                self.y_trn, num_classes=self.main.n_class)
+            self.y_val = to_categorical(
+                self.y_val, num_classes=self.main.n_class)
+            
 #%% Class(Prepare) display_data() ---------------------------------------------
 
     def display_data(self):
         import napari
         vwr = napari.Viewer()
         vwr.add_image(self.X_trn, name="X_trn")
-        if self.y is not None:
+        if self.y is not None and not self.main.model_type == "cls":
             vwr.add_image(self.y_trn, name="y_trn")
             vwr.grid.enabled = True
-        
+            
 #%% Class(Prepare) tensorize_data() -------------------------------------------
 
     def tensorize_data(self):

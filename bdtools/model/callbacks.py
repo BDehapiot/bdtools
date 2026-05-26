@@ -87,7 +87,8 @@ class CallBacks(Callback):
         self.checkpoint.on_train_end(logs)
         self.early_stopping.on_train_end(logs)
         self.plot_training()
-        self.predict_examples()
+        if not self.main.model_type == "cls":
+            self.predict_examples()
         
 #%% Class(CallBacks) : print_log() --------------------------------------------    
         
@@ -134,6 +135,12 @@ class CallBacks(Callback):
         if self.model_type == "sm":
             var_str = (
                 f"backbone         : {self.backbone}\n"
+                )
+            
+        if self.model_type == "cls":
+            var_str = (
+                f"filters          : {self.filters }\n"
+                f"n_class          : {self.n_class}\n"
                 )
         
         if self.model_type == "aec":
