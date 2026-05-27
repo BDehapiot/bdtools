@@ -1,14 +1,18 @@
 #%% Imports -------------------------------------------------------------------
 
 import time
+import pickle
 import numpy as np
 np.random.seed(42)
 from skimage import io
 from pathlib import Path
 
+# bdtools
+from bdtools.check import Check
+
 #%% Comments ------------------------------------------------------------------
 
-#%% Function(s) ---------------------------------------------------------------
+#%% Function(s) : old ---------------------------------------------------------
 
 def save_compressed_mask(arr, path):
     arr_bin = np.packbits(arr > 0)        
@@ -27,6 +31,34 @@ def save_compressed_stack(arr, path):
 def load_compressed_stack(path):
     with np.load(path) as loader:
         return loader["data"]
+    
+#%% Function(s) : new ---------------------------------------------------------
+
+def save_arr(data, path):
+    dtypes = [bool, "uint8", "uint16", "float32"]
+    Check(data, name="data", ctype=np.ndarray, dtype=dtypes) 
+    is_msk = data.dtype == bool or np.isin(np.unique(data), [0, 1]).all()
+    if is_msk:
+        arr_bin = np.packbits(arr.astype(bool))
+        np.savez_compressed(
+            path, 
+            data=arr_bin, 
+            shape=arr.shape, 
+            dtype=arr.dtype.str, 
+            is_mask=True
+            )
+    else:
+        np.savez_compressed(path, data=arr, is_mask=False)
+
+def load_arr(path):
+    with np.load(path) as loader:
+        if loader["is_mask"]:
+            shape = loader["shape"]
+            orig_dtype = loader["dtype"]
+            unpacked = np.unpackbits(loader["data"])[:np.prod(shape)]
+            return unpacked.reshape(shape).astype(orig_dtype)
+        else:
+            return loader["data"]
 
 #%% Execute -------------------------------------------------------------------
 
