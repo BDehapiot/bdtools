@@ -26,7 +26,8 @@ parameters = {
     "input_shape"        : (None, None, 3),
     "backbone"           : "resnet18", # (sm)
     "filters"            : [64, 128], # (cls & aec)
-    "n_class"            : 12, # (cls)
+    "n_classes"          : 12, # (cls)
+    "classes"            : None,
     "latent_size"        : 128, # (aec)
     "loss"               : "cce",
     "metric"             : "acc",
@@ -41,9 +42,9 @@ parameters = {
     
     "display"            : 0,
     "epochs"             : 512,
-    "batch_size"         : 16,
+    "batch_size"         : 32,
     "validation_split"   : 0.2,
-    "learning_rate"      : 0.001,
+    "learning_rate"      : 0.0001,
     "patience"           : 128,
 
     # Augment -----------------------------------------------------------------
@@ -88,7 +89,7 @@ parameters = {
 
 """
 - Make tensors for predictions as well?
-- augment() is not implemented for model_type == "cls"
+- Make a None parameter for patches (patching at the size of input)
 
 """
     
@@ -156,36 +157,29 @@ class Model:
                 n_trn = int(n - (n * self.validation_split))
                 
                 if self.model_type == "sm":
-                    
-                    self.model_name = (
-                        "model-sm_"
-                        f"{self.patch_size}_"
+                    var_str = (
                         f"{self.mask_method}_"
-                        f"{n_trn}-"
-                        f"{self.augment_iterations}"
                         )
                     
                 if self.model_type == "cls":
-                    
-                    self.model_name = (
-                        "model-cls_"
-                        f"{self.patch_size}_"
+                    var_str = (
                         f"{len(self.filters)}_"
-                        f"{self.n_class}_"
-                        f"{n_trn}-"
-                        f"{self.augment_iterations}"
+                        f"{self.n_classes}_"
                         )
-                    
+                
                 if self.model_type == "aec":
-                    
-                    self.model_name = (
-                        "model-aec_"
-                        f"{self.patch_size}_"
+                    var_str = (
                         f"{len(self.filters)}_"
                         f"{self.latent_size}_"
-                        f"{n_trn}-"
-                        f"{self.augment_iterations}"
                         )
+                                
+                self.model_name = (
+                    f"model-{self.model_type}_"
+                    f"{self.patch_size}_"
+                    f"{var_str}"
+                    f"{n_trn}-"
+                    f"{self.augment_iterations}"
+                    )
                     
                 self.get_model_path()
                 
@@ -269,8 +263,13 @@ class Model:
             model = self.model
         
         # Initialize
+        
         if patch_overlap is None:
-            patch_overlap = self.patch_size // 2
+            if self.model_type in ["sm", "aec"]:
+                patch_overlap = self.patch_size // 2
+            elif self.model_type == "cls":
+                patch_overlap = 0
+        
         if self.input_shape[-1] > 1:
             multichannel_in = True
             if self.model_type == "sm":
@@ -280,6 +279,7 @@ class Model:
         else:
             multichannel_in = False
             multichannel_out = False
+        
         Check(X, name="X", ctype=(np.ndarray, list), dtype=float, vrange=(0, 1))
         
         # Convert X to list
@@ -302,6 +302,8 @@ class Model:
                 arr, self.patch_size, patch_overlap, 
                 multichannel=multichannel_in
                 ))
+        
+            print(patches.shape)
         
             # Predict
             
@@ -365,26 +367,108 @@ if __name__ == "__main__":
     
 #%% train() -------------------------------------------------------------------
     
-    # model = Model(parameters=parameters, model_path=None)
-    # model.train(X, y=y)    
+    model = Model(parameters=parameters, model_path=None)
+    model.train(X, y=y)       
 
 #%% predict() -----------------------------------------------------------------
         
-    model_path = Path(Path.cwd(), "model-cls_160_2_12_240-1024")
-    model = Model(parameters=None, model_path=model_path)
-    prds = model.predict(
-        X, patch_overlap=None, batch_size=32, chunk_size=None, latent=False)
+    # model_path = Path(Path.cwd(), "model-cls_160_2_12_240-1024")
+    # model = Model(parameters=None, model_path=model_path)
+    # prds = model.predict(
+    #     X, patch_overlap=None, batch_size=32, chunk_size=None, latent=False)
     
-    if dataset == "chess_class":
-        prds = resize(prds, (prds.shape[0] / 10, prds.shape[1] * 10))
+    # if dataset == "chess_class":
+    #     prds = resize(prds, (prds.shape[0] / 10, prds.shape[1] * 10))
     
-    # Display
-    import napari
-    vwr = napari.Viewer()
-    if isinstance(X, list):
-        idx = 0
-        # vwr.add_image(X[idx])
-        vwr.add_image(prds[idx])
-    else:
-        # vwr.add_image(X)
-        vwr.add_image(prds)
+    # # Display
+    # import napari
+    # vwr = napari.Viewer()
+    # if isinstance(X, list):
+    #     idx = 0
+    #     # vwr.add_image(X[idx])
+    #     vwr.add_image(prds[idx])
+    # else:
+    #     # vwr.add_image(X)
+    #     vwr.add_image(prds)
+        
+#%%
+
+    # import matplotlib.pyplot as plt
+    # from tensorflow.keras.utils import to_categorical
+    # from sklearn.metrics import (
+    #     confusion_matrix, classification_report, accuracy_score)
+
+    # # Classes
+    # classes = [
+    #     "bis_b", "bis_w",
+    #     "kin_b", "kin_w",
+    #     "kni_b", "knt_w",
+    #     "paw_b", "paw_w",
+    #     "que_b", "que_w",
+    #     "roo_b", "roo_w",
+    #     ]
+
+    # # One hot encoding    
+    # y_hot = to_categorical(y, num_classes=parameters["n_classes"])
+
+    # # Get classes
+    # y_pred = np.argmax(prds, axis=1)
+    # y_true = np.argmax(y_hot, axis=1)
+    
+    # # Confusion matrix & report
+    # cmat = confusion_matrix(y_true, y_pred).astype("float32")
+    # cmat /= cmat.sum(axis=1, keepdims=True)
+    # stat = classification_report(y_true, y_pred, output_dict=True)
+    
+    # # Fetch
+    # stat_str = []
+    # stat_str.append(" cls    prc     rec     f1s  ")
+    # stat_str.append("----------------------------")
+    # for c in range(model.n_classes):
+    #     if classes is not None:
+    #         cls_str = f"({ classes[c]})"
+    #     else:
+    #         cls_str = f"()"
+    #     stat_str.append(
+    #         f" {c:03d} | "
+    #         f"{stat[str(c)]['precision']:.3f} | "
+    #         f"{stat[str(c)]['recall'   ]:.3f} | "
+    #         f"{stat[str(c)]['f1-score' ]:.3f} "
+    #         f"{cls_str}"
+    #         )
+    # stat_str.append("----------------------------")
+    # stat_str.append(
+    #     " avg | "
+    #     f"{stat['macro avg']['precision']:.3f} | "
+    #     f"{stat['macro avg']['recall'   ]:.3f} | "
+    #     f"{stat['macro avg']['f1-score' ]:.3f}"
+    #     )
+    # stat_str.append(
+    #     "wavg | "
+    #     f"{stat['weighted avg']['precision']:.3f} | "
+    #     f"{stat['weighted avg']['recall'   ]:.3f} | "
+    #     f"{stat['weighted avg']['f1-score' ]:.3f}"
+    #     )
+    # stat_str = "\n".join(stat_str)
+    # print(stat_str)
+        
+    # # Plot --------------------------------------------------------------------
+    
+    # fig, ax = plt.subplots(1, 1, figsize=(6, 6)) 
+    # img = ax.imshow(cmat, interpolation="nearest")
+    # ax.figure.colorbar(img, ax=ax, fraction=0.046, pad=0.04)
+    
+    # ax.text(
+    #     0.0, -0.25, stat_str, 
+    #     size=12, color="k", font="consolas",
+    #     transform=ax.transAxes, ha="left", va="top",
+    #     )
+
+    # ax.set_title(model.model_name)
+    # ax.set_xticks(np.arange(cmat.shape[1]))
+    # ax.set_yticks(np.arange(cmat.shape[0]))
+    # ax.set_xticklabels(classes, rotation=90)
+    # ax.set_yticklabels(classes)
+    # ax.set_xlabel("True")
+    # ax.set_ylabel("Predicted")
+

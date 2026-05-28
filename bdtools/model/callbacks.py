@@ -11,6 +11,9 @@ from tensorflow.keras.callbacks import (
     Callback, EarlyStopping, ModelCheckpoint
     )
 
+# Scikit learn
+from sklearn.metrics import confusion_matrix, classification_report
+
 #%% Class(CallBacks) ----------------------------------------------------------
 
 class CallBacks(Callback):
@@ -87,8 +90,10 @@ class CallBacks(Callback):
         self.checkpoint.on_train_end(logs)
         self.early_stopping.on_train_end(logs)
         self.plot_training()
-        if not self.main.model_type == "cls":
-            self.predict_examples()
+        if self.main.model_type in ["sm", "aec"]:
+            self.predict_images()
+        elif self.main.model_type == "cls":
+            self.predict_classes()
         
 #%% Class(CallBacks) : print_log() --------------------------------------------    
         
@@ -140,7 +145,7 @@ class CallBacks(Callback):
         if self.model_type == "cls":
             var_str = (
                 f"filters          : {self.filters }\n"
-                f"n_class          : {self.n_class}\n"
+                f"n_class          : {self.n_classes}\n"
                 )
         
         if self.model_type == "aec":
@@ -161,36 +166,36 @@ class CallBacks(Callback):
             )
         
         # Plot
-        fig, axis = plt.subplots(1, 1, figsize=(6, 6))   
-        axis.plot(trn_losses, label="loss")
-        axis.plot(val_losses, label="val_loss")
-        axis.axvline(x=best_epoch, color="k", linestyle=":", linewidth=1)
-        axis.axhline(y=best_val_loss, color="k", linestyle=":", linewidth=1)
-        axis.text(
+        fig, ax = plt.subplots(1, 1, figsize=(6, 6))   
+        ax.plot(trn_losses, label="loss")
+        ax.plot(val_losses, label="val_loss")
+        ax.axvline(x=best_epoch, color="k", linestyle=":", linewidth=1)
+        ax.axhline(y=best_val_loss, color="k", linestyle=":", linewidth=1)
+        ax.text(
             best_epoch / epochs, 1.025, f"{best_epoch_time:.2f}s", 
             size=10, color="k",
-            transform=axis.transAxes, ha="center", va="center",
+            transform=ax.transAxes, ha="center", va="center",
             )
-        y_min, y_max = axis.get_ylim()
+        y_min, y_max = ax.get_ylim()
         bvl_position = (best_val_loss - y_min) / (y_max - y_min)
-        axis.text(
+        ax.text(
             1.025, bvl_position, f"{best_val_loss:.4f}", 
             size=10, color="k",
-            transform=axis.transAxes, ha="left", va="center",
+            transform=ax.transAxes, ha="left", va="center",
             )
-        axis.text(
+        ax.text(
             0.075, 0.85, infos, 
             size=8, color="k",
-            transform=axis.transAxes, ha="left", va="top", 
+            transform=ax.transAxes, ha="left", va="top", 
             fontfamily="Consolas",
             )
         
-        axis.set_title(model_name, pad=20)
-        axis.set_xlim(0, epochs)
-        axis.set_ylim(0, np.mean(val_losses) * 2)
-        axis.set_xlabel("epochs")
-        axis.set_ylabel("loss")
-        axis.legend(
+        ax.set_title(model_name, pad=20)
+        ax.set_xlim(0, epochs)
+        ax.set_ylim(0, np.mean(val_losses) * 2)
+        ax.set_xlabel("epochs")
+        ax.set_ylabel("loss")
+        ax.legend(
             loc="upper left", frameon=False, 
             bbox_to_anchor=(0.05, 0.975), 
             )
@@ -200,9 +205,9 @@ class CallBacks(Callback):
         plt.savefig(self.main.model_path / "train_plot.png", format="png")
         plt.show()
         
-#%% Class(CallBacks) : predict_examples() ------------------------------------- 
+#%% Class(CallBacks) : predict_images() --------------------------------------- 
         
-    def predict_examples(self, max_img=50, max_mb=100):
+    def predict_images(self, max_img=50, max_mb=100):
                  
         # Determine size
         nS = self.X_val.shape[0]
@@ -250,7 +255,74 @@ class CallBacks(Callback):
             axes = "ZCYX"
             examples = np.transpose(examples, (0, 3, 1, 2))
         tifffile.imwrite(
-            self.main.model_path / "predict_examples.tif",
+            self.main.model_path / "predict_images.tif",
             examples, imagej=True, metadata={"axes": axes},
             )
-            
+        
+#%% Class(CallBacks) : predict_classes() --------------------------------------
+
+    def predict_classes(self):
+        
+        # Predict
+        prds = self.main.predict(self.X_val).squeeze()
+        y_pred = np.argmax(prds, axis=1)
+        y_true = np.argmax(self.y_val, axis=1)
+        
+        # Confusion matrix & statistics
+        cmat = confusion_matrix(y_true, y_pred)
+        stat = classification_report(y_true, y_pred)
+        
+        # infos
+        infos = []
+        infos.append(" cls    prc     rec     f1s  ")
+        infos.append("----------------------------")
+        for c in range(self.n_classes):
+            if self.classes is not None:
+                cls_str = f"({ self.classes[c]})"
+            else:
+                cls_str = ""
+            infos.append(
+                f" {c:03d} | "
+                f"{stat[str(c)]['precision']:.3f} | "
+                f"{stat[str(c)]['recall'   ]:.3f} | "
+                f"{stat[str(c)]['f1-score' ]:.3f} "
+                f"{cls_str}"
+                )
+        infos.append("----------------------------")
+        infos.append(
+            " avg | "
+            f"{stat['macro avg']['precision']:.3f} | "
+            f"{stat['macro avg']['recall'   ]:.3f} | "
+            f"{stat['macro avg']['f1-score' ]:.3f}"
+            )
+        infos.append(
+            "wavg | "
+            f"{stat['weighted avg']['precision']:.3f} | "
+            f"{stat['weighted avg']['recall'   ]:.3f} | "
+            f"{stat['weighted avg']['f1-score' ]:.3f}"
+            )
+        infos = "\n".join(infos)
+        
+        # Plot
+        fig, ax = plt.subplots(1, 1, figsize=(6, 6)) 
+        img = ax.imshow(cmat, interpolation="nearest")
+        ax.figure.colorbar(img, ax=ax, fraction=0.046, pad=0.04)
+        
+        ax.text(
+            0.0, -0.25, infos, 
+            size=12, color="k", font="consolas",
+            transform=ax.transAxes, ha="left", va="top",
+            )
+
+        ax.set_title(self.model_name)
+        ax.set_xticks(np.arange(cmat.shape[1]))
+        ax.set_yticks(np.arange(cmat.shape[0]))
+        ax.set_xticklabels(self.classes, rotation=90)
+        ax.set_yticklabels(self.classes)
+        ax.set_xlabel("True")
+        ax.set_ylabel("Predicted")      
+        
+        # Save    
+        plt.tight_layout()
+        plt.savefig(self.main.model_path / "predict_classes.png", format="png")
+        plt.show()

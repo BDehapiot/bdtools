@@ -110,6 +110,7 @@ class Prepare:
 #%% Class(Prepare) split_data() -----------------------------------------------
 
     def split_data(self):
+        
         n_total = self.X.shape[0]
         n_val = int(n_total * self.validation_split)
         idx = np.random.permutation(np.arange(0, n_total))
@@ -147,9 +148,9 @@ class Prepare:
         
         if self.main.model_type == "cls":
             self.y_trn = to_categorical(
-                self.y_trn, num_classes=self.main.n_class)
+                self.y_trn, num_classes=self.main.n_classes)
             self.y_val = to_categorical(
-                self.y_val, num_classes=self.main.n_class)
+                self.y_val, num_classes=self.main.n_classes)
             
 #%% Class(Prepare) display_data() ---------------------------------------------
 

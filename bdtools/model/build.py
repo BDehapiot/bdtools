@@ -80,7 +80,7 @@ class Build:
         x = layers.Dropout(0.3)(x)
                 
         # Output layer
-        outputs = layers.Dense(self.n_class, activation="softmax")(x)
+        outputs = layers.Dense(self.n_classes, activation="softmax")(x)
         
         self.model = Model(inputs, outputs, name="classifier")
         
