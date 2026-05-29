@@ -376,10 +376,7 @@ if __name__ == "__main__":
     # model = Model(parameters=None, model_path=model_path)
     # prds = model.predict(
     #     X, patch_overlap=None, batch_size=32, chunk_size=None, latent=False)
-    
-    # if dataset == "chess_class":
-    #     prds = resize(prds, (prds.shape[0] / 10, prds.shape[1] * 10))
-    
+        
     # # Display
     # import napari
     # vwr = napari.Viewer()
@@ -399,6 +396,7 @@ if __name__ == "__main__":
     #     confusion_matrix, classification_report, accuracy_score)
 
     # # Classes
+    
     # classes = [
     #     "bis_b", "bis_w",
     #     "kin_b", "kin_w",
@@ -407,6 +405,8 @@ if __name__ == "__main__":
     #     "que_b", "que_w",
     #     "roo_b", "roo_w",
     #     ]
+    
+    # # classes = None
 
     # # One hot encoding    
     # y_hot = to_categorical(y, num_classes=parameters["n_classes"])
@@ -428,7 +428,7 @@ if __name__ == "__main__":
     #     if classes is not None:
     #         cls_str = f"({ classes[c]})"
     #     else:
-    #         cls_str = f"()"
+    #         cls_str = ""
     #     stat_str.append(
     #         f" {c:03d} | "
     #         f"{stat[str(c)]['precision']:.3f} | "
@@ -459,16 +459,17 @@ if __name__ == "__main__":
     # ax.figure.colorbar(img, ax=ax, fraction=0.046, pad=0.04)
     
     # ax.text(
-    #     0.0, -0.25, stat_str, 
+    #     0.0, -0.2, stat_str, 
     #     size=12, color="k", font="consolas",
     #     transform=ax.transAxes, ha="left", va="top",
     #     )
 
-    # ax.set_title(model.model_name)
+    # ax.set_title(model.model_path.name, pad=20)
     # ax.set_xticks(np.arange(cmat.shape[1]))
     # ax.set_yticks(np.arange(cmat.shape[0]))
-    # ax.set_xticklabels(classes, rotation=90)
-    # ax.set_yticklabels(classes)
-    # ax.set_xlabel("True")
-    # ax.set_ylabel("Predicted")
+    # if classes is not None:
+    #     ax.set_xticklabels(classes, rotation=90)
+    #     ax.set_yticklabels(classes)
+    # ax.set_xlabel("true")
+    # ax.set_ylabel("predicted")
 

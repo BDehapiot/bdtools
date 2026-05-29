@@ -3,7 +3,6 @@
 import time
 import tifffile
 import numpy as np
-from skimage import io
 import matplotlib.pyplot as plt
 
 # Tensorflow
@@ -133,7 +132,7 @@ class CallBacks(Callback):
         best_epoch_time = self.epoch_times[best_epoch]
         best_val_loss = self.best_val_loss
         best_val_metric = self.val_metrics[best_epoch]
-        model_name = self.model_name
+        model_name = self.main.model_name
         
         # Info
         
@@ -190,7 +189,7 @@ class CallBacks(Callback):
             fontfamily="Consolas",
             )
         
-        ax.set_title(model_name, pad=20)
+        ax.set_title(model_name, pad=10)
         ax.set_xlim(0, epochs)
         ax.set_ylim(0, np.mean(val_losses) * 2)
         ax.set_xlabel("epochs")
@@ -202,7 +201,9 @@ class CallBacks(Callback):
         
         # Save    
         plt.tight_layout()
-        plt.savefig(self.main.model_path / "train_plot.png", format="png")
+        plt.savefig(
+            self.main.model_path / "predict_training.png", format="png",
+            bbox_inches="tight", pad_inches=0.1)
         plt.show()
         
 #%% Class(CallBacks) : predict_images() --------------------------------------- 
@@ -269,15 +270,17 @@ class CallBacks(Callback):
         y_true = np.argmax(self.y_val, axis=1)
         
         # Confusion matrix & statistics
-        cmat = confusion_matrix(y_true, y_pred)
-        stat = classification_report(y_true, y_pred)
+        cmat = confusion_matrix(y_true, y_pred).astype("float32")
+        cmat /= cmat.sum(axis=1, keepdims=True)
+        stat = classification_report(
+            y_true, y_pred, output_dict=True, zero_division=0)
         
         # infos
         infos = []
         infos.append(" cls    prc     rec     f1s  ")
         infos.append("----------------------------")
-        for c in range(self.n_classes):
-            if self.classes is not None:
+        for c in range(self.main.n_classes):
+            if self.main.classes is not None:
                 cls_str = f"({ self.classes[c]})"
             else:
                 cls_str = ""
@@ -310,19 +313,22 @@ class CallBacks(Callback):
         
         ax.text(
             0.0, -0.25, infos, 
-            size=12, color="k", font="consolas",
+            size=10, color="k", font="consolas",
             transform=ax.transAxes, ha="left", va="top",
             )
 
-        ax.set_title(self.model_name)
+        ax.set_title(self.main.model_name, pad=10)
         ax.set_xticks(np.arange(cmat.shape[1]))
         ax.set_yticks(np.arange(cmat.shape[0]))
-        ax.set_xticklabels(self.classes, rotation=90)
-        ax.set_yticklabels(self.classes)
-        ax.set_xlabel("True")
-        ax.set_ylabel("Predicted")      
+        if self.main.classes is not None:
+            ax.set_xticklabels(self.main.classes, rotation=90)
+            ax.set_yticklabels(self.main.classes)
+        ax.set_xlabel("true")
+        ax.set_ylabel("predicted")      
         
         # Save    
         plt.tight_layout()
-        plt.savefig(self.main.model_path / "predict_classes.png", format="png")
+        plt.savefig(
+            self.main.model_path / "predict_classes.png", format="png",
+            bbox_inches="tight", pad_inches=0.1)
         plt.show()
