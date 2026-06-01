@@ -26,6 +26,7 @@ def augment(
         noise_p=0.5,
         flip_p=0.5,
         distort_p=0.5,
+        balance=False,
         preserve_range=True,
         ):
     
@@ -61,6 +62,9 @@ def augment(
     
     gamma_p, gblur_p, noise_p, flip_p, distort_p : float (0 to 1) 
         Probability to apply the transformation.
+        
+    balance : bool
+        Evenly augment data according to classes
     
     Returns
     -------
@@ -290,17 +294,33 @@ def augment(
        
     # Initialize
     imgs = imgs.astype("float32")
-    idxs = np.random.choice(
-        np.arange(0, imgs.shape[0]), size=iterations)
     if isinstance(msks, np.ndarray) and msks.ndim == 1:
-        clss = msks[idxs]
+        clss = msks.copy()
         msks = None
-
+        
+    # Get random indexes (balance if required)
+    if "clss" in locals() and balance:
+        idxs = []
+        cls_unique = np.unique(clss)
+        for c in cls_unique:
+            idxs.append(
+                np.random.choice(
+                    np.argwhere(clss == c).squeeze(),
+                    size=iterations // len(cls_unique)
+                    )
+                )
+        idxs = np.concatenate(idxs, axis=0)
+    else:
+        idxs = np.random.choice(
+            np.arange(0, imgs.shape[0]), size=iterations)
+    if "clss" in locals():
+        clss = clss[idxs]
+            
     # Augment
     outputs = Parallel(n_jobs=-1, backend="threading")(
-            delayed(_augment)(imgs[i], msks[i] if msks is not None else None)
-            for i in idxs
-            )
+        delayed(_augment)(imgs[i], msks[i] if msks is not None else None)
+        for i in idxs
+        )
     
     # output(s)
     imgs = np.stack([data[0] for data in outputs])
@@ -309,24 +329,29 @@ def augment(
         return imgs, msks
     if "clss" in locals():
         return imgs, clss
-    return imgs, None
+    return imgs
 
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
     
     from bdtools.test import load_data
+    from skimage.transform import downscale_local_mean
     
     # Paths
     # dataset = "em_mito"
     # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
-    # dataset = "fluo_nuclei_semantic"
-    dataset = "sat_roads"
+    dataset = "fluo_nuclei_semantic"
+    # dataset = "sat_roads"
     # dataset = "chess_class"
     
     # Load data
     X, y = load_data(dataset)
+    
+    # Downscale (optional)
+    if dataset == "chess_class":
+        X = downscale_local_mean(X, (1, 4, 4, 1))
       
 #%% augment() -----------------------------------------------------------------
     
@@ -337,7 +362,7 @@ if __name__ == "__main__":
     # Parameters
     y = y
     msk_method = "binary"
-    iterations = 500
+    iterations = 1024
     gamma_p    = 0.5
     gblur_p    = 0.5
     noise_p    = 0.5
@@ -405,6 +430,7 @@ if __name__ == "__main__":
         flip_p=flip_p, 
         distort_p=distort_p,
         preserve_range=True,
+        balance=True,
         )
     
     if y is not None:

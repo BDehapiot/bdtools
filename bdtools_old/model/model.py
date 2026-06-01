@@ -22,26 +22,15 @@ parameters = {
 
     # Build -------------------------------------------------------------------
     
-    # Global
     "model_type"         : "cls",
     "input_shape"        : (None, None, 3),
-    "loss"               : "fcl",
-    "metric"             : "acc",
-    
-    # cls
-    "filters"            : [16, 32],
-    "n_classes"          : 12,
+    "backbone"           : "resnet18", # (sm)
+    "filters"            : [64, 128], # (cls & aec)
+    "n_classes"          : 12, # (cls)
     "classes"            : None,
-    "glob_avg_pool"      : True,
-    "regularizer"        : 0.001,
-    "dropout"            : 0.5,
-    
-    # # sm
-    # "backbone"           : "resnet18",
-    
-    # # aec
-    # "filters"            : [16, 32],
-    # "latent_size"        : 128,
+    "latent_size"        : 128, # (aec)
+    "loss"               : "cce",
+    "metric"             : "acc",
     
     # Prepare -----------------------------------------------------------------
     
@@ -53,9 +42,9 @@ parameters = {
     
     "display"            : 0,
     "epochs"             : 512,
-    "batch_size"         : 128,
+    "batch_size"         : 32,
     "validation_split"   : 0.2,
-    "learning_rate"      : 0.0005,
+    "learning_rate"      : 0.0001,
     "patience"           : 128,
 
     # Augment -----------------------------------------------------------------
@@ -66,7 +55,6 @@ parameters = {
     "augment_noise_p"    : 0.0,
     "augment_flip_p"     : 0.5,
     "augment_distort_p"  : 0.5,
-    "augment_balance"    : True, # (cls)
     
     "augment_parameters" : {
         
@@ -167,13 +155,7 @@ class Model:
                 
                 n = self.X.shape[0]
                 n_trn = int(n - (n * self.validation_split))
-                if self.augment_iterations is not None:     
-                    n_aug = f"{self.X_trn.shape[0]}"
-                    if self.augment_balance:
-                        n_aug += "b"
-                else:
-                    n_aug = None
-                        
+                
                 if self.model_type == "sm":
                     var_str = (
                         f"{self.mask_method}_"
@@ -196,7 +178,7 @@ class Model:
                     f"{self.patch_size}_"
                     f"{var_str}"
                     f"{n_trn}-"
-                    f"{n_aug}"
+                    f"{self.augment_iterations}"
                     )
                     
                 self.get_model_path()
@@ -229,13 +211,13 @@ class Model:
             ctype=(np.ndarray, list), dtype=float,
             vrange=(0, 1),
             )
-                
+        
         # Prepare
         Prepare(self, self.X, y=self.y, display=self.display)
-
+        
         # Build
         Build(self, model_type=self.model_type)
-
+        
         # Initialize training
         self.initialize_train()
 

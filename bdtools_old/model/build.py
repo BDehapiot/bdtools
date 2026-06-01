@@ -8,7 +8,7 @@ import segmentation_models as sm
 from bdtools.model import metrics
 
 # tensorflow
-from tensorflow.keras import layers, regularizers, Model
+from tensorflow.keras import layers, Model
 from tensorflow.keras.optimizers import Adam
 
 #%% Class(Build) --------------------------------------------------------------
@@ -54,16 +54,10 @@ class Build:
             activation="sigmoid",
             encoder_weights=None,
             )
-                    
+            
 #%% Class(Build) build_cls() --------------------------------------------------
 
     def build_cls(self):
-               
-        # Initialize
-        if self.regularizer is not None:
-            reg = regularizers.l2(self.regularizer)
-        else:
-            reg = None
         
         # Input layer
         inputs = layers.Input(shape=self.input_shape)
@@ -71,23 +65,19 @@ class Build:
         
         # Encoder 
         for f in self.filters:
-            x = layers.Conv2D(
-                f, (3, 3), padding="same", kernel_regularizer=reg)(x)
+            x = layers.Conv2D(f, (3, 3), padding="same")(x)
             x = layers.BatchNormalization()(x)
             x = layers.Activation("relu")(x)
             x = layers.MaxPooling2D((2, 2))(x)
             
         # Classification head
-        if self.glob_avg_pool:
-            x = layers.GlobalAveragePooling2D()(x)
-        else:
-            x = layers.Flatten()(x)
+        x = layers.GlobalAveragePooling2D()(x)
         
-        # Add dense layer & dropout 
-        # (learn non-linearities & avoid overfitting)
-        x = layers.Dense(
-            self.filters[-1] // 2, activation="relu", kernel_regularizer=reg)(x)
-        x = layers.Dropout(self.dropout)(x)
+        # Add dense layer (learn non-linearities)
+        x = layers.Dense(self.filters[-1] // 2, activation="relu")(x)
+
+        # Add dropout (avoid overfitting)
+        x = layers.Dropout(0.3)(x)
                 
         # Output layer
         outputs = layers.Dense(self.n_classes, activation="softmax")(x)

@@ -12,9 +12,6 @@ from bdtools.patch import extract_patches
 import tensorflow as tf
 from tensorflow.keras.utils import to_categorical
 
-# scikitlearn
-from sklearn.utils import class_weight
-
 #%% Comments ------------------------------------------------------------------
 
 """
@@ -44,8 +41,6 @@ class Prepare:
         if self.display:
             self.display_data()
             sys.exit(0)
-        if self.main.model_type == "cls":
-            self.one_hot_encoding()
         self.tensorize_data()
         
         # Pass attributes to main class
@@ -128,12 +123,11 @@ class Prepare:
             self.y_trn = None
             self.y_val = None
             
-        print("\ndata shapes")
-        print("X_trn :", self.X_trn.shape)
-        print("X_val :", self.X_val.shape)
+        print("X_trn.shape =", self.X_trn.shape)
+        print("X_val.shape =", self.X_val.shape)
         if self.y is not None:  
-            print("y_trn :", self.y_trn.shape)
-            print("y_val :", self.y_val.shape)
+            print("y_trn.shape =", self.y_trn.shape)
+            print("y_val.shape =", self.y_val.shape)
             
 #%% Class(Prepare) augment_data() ---------------------------------------------
             
@@ -149,27 +143,26 @@ class Prepare:
             noise_p=self.augment_noise_p,
             flip_p=self.augment_flip_p,
             distort_p=self.augment_distort_p,
-            balance=self.augment_balance,
             preserve_range=True,
             )
         
-        # Print augmented data shape
-        print("\naugmented data shapes")
-        print("X_trn :", self.X_trn.shape)
-        print("X_val :", self.X_val.shape)
-        if self.y is not None:  
-            print("y_trn :", self.y_trn.shape)
-            print("y_val :", self.y_val.shape, "\n")
-                                          
-#%% Class(Prepare) one_hot_encoding() -----------------------------------------
-        
-    def one_hot_encoding(self):
-        self.y_trn = to_categorical(
-            self.y_trn, num_classes=self.main.n_classes)
-        self.y_val = to_categorical(
-            self.y_val, num_classes=self.main.n_classes)
+        if self.main.model_type == "cls":
+            self.y_trn = to_categorical(
+                self.y_trn, num_classes=self.main.n_classes)
+            self.y_val = to_categorical(
+                self.y_val, num_classes=self.main.n_classes)
             
-#%% Class(Prepare) tensorize_data() ------------------------------------------- 
+#%% Class(Prepare) display_data() ---------------------------------------------
+
+    def display_data(self):
+        import napari
+        vwr = napari.Viewer()
+        vwr.add_image(self.X_trn, name="X_trn")
+        if self.y is not None and not self.main.model_type == "cls":
+            vwr.add_image(self.y_trn, name="y_trn")
+            vwr.grid.enabled = True
+            
+#%% Class(Prepare) tensorize_data() -------------------------------------------
 
     def tensorize_data(self):
         
@@ -181,7 +174,7 @@ class Prepare:
             (self.X_trn, trn_target))
         self.val_tensor = tf.data.Dataset.from_tensor_slices(
             (self.X_val, val_target))
-            
+                
         # Optimizations
         self.trn_tensor = (
             self.trn_tensor
@@ -196,18 +189,3 @@ class Prepare:
             .batch(self.batch_size)
             .prefetch(tf.data.AUTOTUNE)
             )
-        
-#%% Class(Prepare) display_data() ---------------------------------------------
-
-    def display_data(self):
-        
-        import napari
-        
-        if self.input_shape[-1] > 1 and self.input_shape[-1] != 3:
-            self.X_trn = np.transpose(self.X_trn, (0, 3, 1, 2))
-        
-        vwr = napari.Viewer()
-        vwr.add_image(self.X_trn, name="X_trn")
-        if self.y is not None and not self.main.model_type == "cls":
-            vwr.add_image(self.y_trn, name="y_trn")
-            vwr.grid.enabled = True   

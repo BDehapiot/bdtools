@@ -159,23 +159,16 @@ def norm_pct(
     else: pLow = np.percentile(val, pct_low)
     if pct_high == 100: pHigh = np.nanmax(arr)
     else: pHigh = np.percentile(val, pct_high)
-    
-    # Debug
-    if pHigh == 0.0:
-        pHigh = np.nanmax(val)
-        if pHigh == 0.0:
-            pHigh = 1.0
-            
     if isinstance(arr, np.ndarray):
         np.clip(arr, pLow, pHigh, out=arr)
         arr -= pLow
-        with np.errstate(invalid="ignore"):
+        with np.errstate(invalid='ignore'):
             arr /= (pHigh - pLow)
     elif isinstance(arr, list):
         for i in range(len(arr)):
            np.clip(arr[i], pLow, pHigh, out=arr[i]) 
            arr[i] -= pLow
-           with np.errstate(invalid="ignore"):
+           with np.errstate(invalid='ignore'):
                arr[i] /= (pHigh - pLow)
     
     return arr

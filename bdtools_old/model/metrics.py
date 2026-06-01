@@ -1,8 +1,6 @@
 #%% Imports -------------------------------------------------------------------
 
 from tensorflow.keras import backend as K
-from tensorflow.keras.metrics import (
-    categorical_accuracy, sparse_categorical_accuracy)
 
 #%% Function(s): loss ---------------------------------------------------------
 
@@ -73,32 +71,10 @@ def scce(y_true, y_pred):
     """
     return K.mean(K.sparse_categorical_crossentropy(y_true, y_pred))
 
-def fcl(y_true, y_pred):
-    
-    """
-    Focal Loss (FCL)
-    ----------------
-    Addresses class imbalance by down-weighting well-classified examples 
-    and focusing training on hard negatives.
-    """
-    
-    gamma = 2.0
-    alpha = 0.25
-    
-    # Clip predictions to prevent log(0)
-    epsilon = K.epsilon()
-    y_pred = K.clip(y_pred, epsilon, 1.0 - epsilon)
-    
-    # Calculate Cross-Entropy
-    cross_entropy = -y_true * K.log(y_pred)
-    
-    # Calculate Focal Loss: alpha * (1 - p_t)^gamma * cross_entropy
-    loss = alpha * K.pow(1 - y_pred, gamma) * cross_entropy
-    
-    # Return the mean of the sum across classes
-    return K.mean(K.sum(loss, axis=-1))
-
 #%% Function(s): accuracy -----------------------------------------------------
+
+from tensorflow.keras.metrics import (
+    categorical_accuracy, sparse_categorical_accuracy)
 
 def acc(y_true, y_pred):
     

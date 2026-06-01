@@ -268,9 +268,6 @@ class CallBacks(Callback):
         prds = self.main.predict(self.X_val).squeeze()
         y_pred = np.argmax(prds, axis=1)
         y_true = np.argmax(self.y_val, axis=1)
-        _, y_num = np.unique(
-            np.argmax(self.y_trn, axis=1), return_counts=True
-            )
         
         # Confusion matrix & statistics
         cmat = confusion_matrix(y_true, y_pred).astype("float32")
@@ -284,9 +281,9 @@ class CallBacks(Callback):
         infos.append("----------------------------")
         for c in range(self.main.n_classes):
             if self.main.classes is not None:
-                cls_str = f"({ self.classes[c]}, n={y_num[c]})"
+                cls_str = f"({ self.classes[c]})"
             else:
-                cls_str = f"n={y_num[c]}"
+                cls_str = ""
             infos.append(
                 f" {c:03d} | "
                 f"{stat[str(c)]['precision']:.3f} | "
