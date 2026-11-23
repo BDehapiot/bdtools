@@ -11,6 +11,12 @@ from bdtools.model.prepare import Prepare
 from bdtools.model.callbacks import CallBacks
 from bdtools.patch import extract_patches, merge_patches
 
+#%% Comments ------------------------------------------------------------------
+
+"""
+- set default parameters and merge them with provided parameters !!!
+"""
+
 #%% Parameters ----------------------------------------------------------------
 
 parameters = {
@@ -28,6 +34,9 @@ parameters = {
     "loss"               : "fcl",
     "metric"             : "acc",
     
+    # sm
+    "backbone"           : "resnet18",
+    
     # cls
     "filters"            : [16, 32],
     "n_classes"          : 12,
@@ -35,9 +44,6 @@ parameters = {
     "glob_avg_pool"      : True,
     "regularizer"        : 0.001,
     "dropout"            : 0.5,
-    
-    # # sm
-    # "backbone"           : "resnet18",
     
     # # aec
     # "filters"            : [16, 32],
@@ -320,7 +326,6 @@ class Model:
                 arr, self.patch_size, patch_overlap, 
                 multichannel=multichannel_in
                 ))
-        
             print(patches.shape)
         
             # Predict

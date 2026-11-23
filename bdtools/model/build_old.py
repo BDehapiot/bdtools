@@ -1,0 +1,140 @@
+#%% Imports -------------------------------------------------------------------
+
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  
+import segmentation_models as sm
+
+# bdtools
+from bdtools.model import metrics
+
+# tensorflow
+from tensorflow.keras import layers, regularizers, Model
+from tensorflow.keras.optimizers import Adam
+
+#%% Class(Build) --------------------------------------------------------------
+
+class Build:
+    
+    def __init__(self, main, model_type="sm"):
+        self.main = main
+        self.model_type = model_type
+        self.parameters = main.parameters
+        for key, val in self.parameters.items():
+            setattr(self, key, val)
+            
+        # Run
+        if self.model_type == "sm":
+            self.build_sm()
+        if self.model_type == "cls":
+            self.build_cls()
+        if self.model_type == "aec":
+            self.build_aec()
+            
+        # Compile
+        self.model.compile(
+            optimizer=Adam(learning_rate=self.learning_rate),
+            loss=getattr(metrics, self.loss),
+            metrics=[getattr(metrics, self.metric)],
+            )
+        
+        # Pass attributes to main class
+        self.main.model = self.model
+        if self.model_type == "aec":
+            self.main.model_enc = self.model_enc
+            self.main.model_dec = self.model_dec
+    
+#%% Class(Build) build_sm() ---------------------------------------------------
+
+    def build_sm(self):
+        
+        self.model = sm.Unet(
+            self.backbone, 
+            input_shape=self.input_shape,
+            classes=1, # Parameter
+            activation="sigmoid",
+            encoder_weights=None,
+            )
+                    
+#%% Class(Build) build_cls() --------------------------------------------------
+
+    def build_cls(self):
+               
+        # Initialize
+        if self.regularizer is not None:
+            reg = regularizers.l2(self.regularizer)
+        else:
+            reg = None
+        
+        # Input layer
+        inputs = layers.Input(shape=self.input_shape)
+        x = inputs
+        
+        # Encoder 
+        for f in self.filters:
+            x = layers.Conv2D(
+                f, (3, 3), padding="same", kernel_regularizer=reg)(x)
+            x = layers.BatchNormalization()(x)
+            x = layers.Activation("relu")(x)
+            x = layers.MaxPooling2D((2, 2))(x)
+            
+        # Classification head
+        if self.glob_avg_pool:
+            x = layers.GlobalAveragePooling2D()(x)
+        else:
+            x = layers.Flatten()(x)
+        
+        # Add dense layer & dropout 
+        # (learn non-linearities & avoid overfitting)
+        x = layers.Dense(
+            self.filters[-1] // 2, activation="relu", kernel_regularizer=reg)(x)
+        x = layers.Dropout(self.dropout)(x)
+                
+        # Output layer
+        outputs = layers.Dense(self.n_classes, activation="softmax")(x)
+        
+        self.model = Model(inputs, outputs, name="classifier")
+        
+#%% Class(Build) build_aec() --------------------------------------------------
+
+    def build_aec(self):
+
+        # Encoder -------------------------------------------------------------
+        
+        enc_inputs = layers.Input(shape=self.input_shape)
+        x = enc_inputs
+    
+        for f in self.filters:
+            x = layers.Conv2D(f, (3, 3), padding="same")(x)
+            x = layers.BatchNormalization()(x)
+            x = layers.Activation("relu")(x)
+            x = layers.MaxPooling2D((2, 2))(x)
+    
+        x = layers.Flatten()(x)
+        latent_space = layers.Dense(
+            self.latent_size, activation="relu", name="latent_features")(x)
+
+        self.model_enc = Model(enc_inputs, latent_space, name="encoder")
+    
+        # Decoder -------------------------------------------------------------
+        
+        dec_inputs = layers.Input(shape=(self.latent_size,))
+        sdim = self.input_shape[0] // 2 ** len(self.filters)
+        
+        x = layers.Dense(sdim * sdim * self.filters[-1], activation="relu")(dec_inputs)
+        x = layers.Reshape((sdim, sdim, self.filters[-1]))(x)
+        for f in reversed(self.filters):
+            x = layers.UpSampling2D((2, 2))(x)
+            x = layers.Conv2D(f, (3, 3), activation="relu", padding="same")(x)
+    
+        dec_outputs = layers.Conv2D(
+            self.input_shape[-1], (3, 3), activation="sigmoid", padding="same")(x)
+        
+        self.model_dec = Model(dec_inputs, dec_outputs, name="decoder")
+    
+        # Autoencoder ---------------------------------------------------------
+        
+        aec_inputs = layers.Input(shape=self.input_shape)
+        enc_img = self.model_enc(aec_inputs)
+        dec_img = self.model_dec(enc_img)
+        
+        self.model = Model(aec_inputs, dec_img, name="autoencoder")

@@ -82,8 +82,8 @@ def fcl(y_true, y_pred):
     and focusing training on hard negatives.
     """
     
-    gamma = 2.0
-    alpha = 0.25
+    gamma = 4.0
+    alpha = 0.5
     
     # Clip predictions to prevent log(0)
     epsilon = K.epsilon()

@@ -86,7 +86,7 @@ class Build:
         # Add dense layer & dropout 
         # (learn non-linearities & avoid overfitting)
         x = layers.Dense(
-            self.filters[-1] // 2, activation="relu", kernel_regularizer=reg)(x)
+            self.filters[-1] * 2, activation="relu", kernel_regularizer=reg)(x)
         x = layers.Dropout(self.dropout)(x)
                 
         # Output layer
