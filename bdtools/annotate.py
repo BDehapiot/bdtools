@@ -456,7 +456,7 @@ if __name__ == "__main__":
     
     # Paths
     dataset = "em_tissues_patches"
-    train_path = Path.cwd().parent.parent / "_local" / dataset
+    train_path = Path.cwd().parent / "_local" / dataset
     
     # Annotate
     Annotate(train_path)

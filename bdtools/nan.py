@@ -455,3 +455,6 @@ def nan_replace(
     arr_filt = arr_filt[z_slice, y_slice, x_slice].squeeze()
 
     return arr_filt
+
+#%%
+
