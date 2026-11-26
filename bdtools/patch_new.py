@@ -4,7 +4,7 @@ import numba
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 
-#%% Function(s) shared --------------------------------------------------------
+#%% Function(s) ---------------------------------------------------------------
 
 def get_dims(shape, multichannel=False):
 
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     
     import time
     import napari
-    from _test import load_data
+    from data.load import load_data
         
     # Initialize --------------------------------------------------------------
     

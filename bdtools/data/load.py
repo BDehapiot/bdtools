@@ -11,23 +11,22 @@ from bdtools.norm import norm_pct
 # skimage
 from skimage.measure import label
 
-#%% Ressources ----------------------------------------------------------------
+#%% Function : load_dataset() -------------------------------------------------
 
-# chess_class
-chess_class_map = {
+def load_dataset(dataset="em_mito", display=False):
     
-    "bis_b" :  0, "bis_w" :  1,
-    "kin_b" :  2, "kin_w" :  3,
-    "kni_b" :  4, "knt_w" :  5,
-    "paw_b" :  6, "paw_w" :  7,
-    "que_b" :  8, "que_w" :  9,
-    "roo_b" : 10, "roo_w" : 11,
+    # Maps --------------------------------------------------------------------
     
-    }
-
-#%% Function : load_data() ----------------------------------------------------
-
-def load_data(dataset="em_mito", display=False):
+    # chess_class_map = {
+        
+    #     "bis_b" :  0, "bis_w" :  1,
+    #     "kin_b" :  2, "kin_w" :  3,
+    #     "kni_b" :  4, "knt_w" :  5,
+    #     "paw_b" :  6, "paw_w" :  7,
+    #     "que_b" :  8, "que_w" :  9,
+    #     "roo_b" : 10, "roo_w" : 11,
+        
+    #     }
     
     # Nested function(s) ------------------------------------------------------
     
@@ -76,20 +75,24 @@ def load_data(dataset="em_mito", display=False):
         vwr = napari.Viewer()
         if isinstance(X, list):
             idx = 0
-            vwr.add_image(X[idx])
+            vwr.add_image(X[idx], name="X")
             if not dataset == "chess_class":
-                vwr.add_image(y[idx])
+                vwr.add_labels(y[idx], name="y")
         else:
             vwr.add_image(X)
             if not dataset == "chess_class":
-                vwr.add_image(y)
+                vwr.add_labels(y, name="y")
         
     return X, y
+
 
 #%% Execute -------------------------------------------------------------------
 
 if __name__ == "__main__":
     
+    # Parameters
+    display = 1
+
     # Paths
     # dataset = "em_mito"
     # dataset = "fluo_tissue"
@@ -99,4 +102,9 @@ if __name__ == "__main__":
     dataset = "chess_class"
     
     # Load data
-    X, y = load_data(dataset, display=False)
+    X, y = load_dataset(dataset, display=display)
+
+    
+
+    
+    

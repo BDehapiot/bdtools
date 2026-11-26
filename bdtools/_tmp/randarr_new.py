@@ -177,14 +177,14 @@ if __name__ == "__main__":
     # Initialize --------------------------------------------------------------
 
     # Parameters
-    shape = (256, 256, 512)
+    shape = (64, 256, 256)
     params = {
         "is3D"         : True,
-        "output_type"  : "nan",
+        "output_type"  : "image",
         "n_objects"    : 64,
-        "radius"       : (8, 32),
-        "elongation"   : (0.0, 1.0),
-        "irregularity" : (0.0, 1.0),
+        "radius"       : (8, 16),
+        "elongation"   : 0.0,
+        "irregularity" : 0.0,
         "noise"        : 0.05,
         "seed"         : 1,
         }
