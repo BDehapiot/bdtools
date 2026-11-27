@@ -8,7 +8,7 @@ from scipy import ndimage as ndi
 #%% Function : random_objects() -----------------------------------------------
 
 def random_objects(
-        shape,
+        shape=(16, 256, 256),
         is3D=False,
         n_objects=16,
         radius=(8, 16),
@@ -207,8 +207,8 @@ if __name__ == "__main__":
     import napari
 
     # Parameters
-    shape = (64, 256, 256)
     params = {
+        "shape"        : (64, 256, 256),
         "is3D"         : True,
         "output_type"  : "nan_background",
         "n_objects"    : 16,
@@ -225,7 +225,7 @@ if __name__ == "__main__":
     t0 = time.time()
     print("random_objects() : ", end="", flush=True)
 
-    arr = random_objects(shape, **params)
+    arr = random_objects(**params)
 
     t1 = time.time()
     print(f"{t1 - t0:.3f}s")

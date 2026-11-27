@@ -211,12 +211,14 @@ if __name__ == "__main__":
     
     # Paths
     # dataset = "em_mito"
-    dataset = "fluo_tissue"
+    # dataset = "fluo_tissue"
     # dataset = "fluo_nuclei_instance"
-    # dataset = "fluo_nuclei_semantic"
+    dataset = "fluo_nuclei_semantic"
     # dataset = "sat_roads"
-    X, y = load_data(dataset=dataset, display=False)
-           
+    
+    # Load
+    X, y = load_data(dataset=dataset, display=False)  
+    
     # Parameters
     idx = 0
     size = 128

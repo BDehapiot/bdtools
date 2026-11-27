@@ -456,5 +456,83 @@ def nan_replace(
 
     return arr_filt
 
-#%%
+#%% Execute -------------------------------------------------------------------
+
+if __name__ == "__main__":
+    
+    # Imports -----------------------------------------------------------------
+    
+    import time
+    import napari
+    from data.create import random_objects
+
+    # random_objects() --------------------------------------------------------
+    
+    random_objects_params = {
+        "shape"        : (64, 1024, 1024),
+        "is3D"         : True,
+        "output_type"  : "nan_objects",
+        "n_objects"    : 64,
+        "radius"       : (16, 32),
+        "elongation"   : (0.1, 0.7),
+        "irregularity" : 0.2,
+        "brightness"   : (1.5, 5.0),
+        "noise"        : 0.5,
+        "seed"         : 1,
+        }
+    
+    t0 = time.time()
+    print("random_objects() : ", end="", flush=True)
+    
+    # Create random objects array
+    arr = random_objects(**random_objects_params)
+        
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # nan_filt() --------------------------------------------------------------
+
+    # nan_filt_params = {
+    #     "mask"         : None,
+    #     "kernel_size"  : 5,
+    #     "kernel_shape" : "ellipsoid",
+    #     "filt_method"  : "std",
+    #     "iterations"   : 3,
+    #     "parallel"     : True,
+    #     }
+
+    # t0 = time.time()
+    # print("nan_filt() : ", end="", flush=True)
+    
+    # arr_filt = nan_filt(arr, **nan_filt_params)
+    
+    # t1 = time.time()
+    # print(f"{t1 - t0:.3f}s")
+    
+    # # Display
+    # viewer = napari.Viewer()
+    # viewer.add_image(arr_filt)
+    
+    # nan_replace() -----------------------------------------------------------
+
+    nan_filt_params = {
+        "mask"         : None,
+        "kernel_size"  : 9,
+        "kernel_shape" : "ellipsoid",
+        "filt_method"  : "mean",
+        "iterations"   : "inf",
+        "parallel"     : True
+        }
+
+    t0 = time.time()
+    print("nan_replace() : ", end="", flush=True)
+    
+    arr_filt = nan_replace(arr, **nan_filt_params)
+    
+    t1 = time.time()
+    print(f"{t1 - t0:.3f}s")
+    
+    # Display
+    viewer = napari.Viewer()
+    viewer.add_image(arr_filt)
 

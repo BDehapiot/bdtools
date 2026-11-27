@@ -11,9 +11,9 @@ from bdtools.norm import norm_pct
 # skimage
 from skimage.measure import label
 
-#%% Function : load_dataset() -------------------------------------------------
+#%% Function : load_data() ----------------------------------------------------
 
-def load_dataset(dataset="em_mito", display=False):
+def load_data(dataset="em_mito", display=False):
     
     # Maps --------------------------------------------------------------------
     
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     dataset = "chess_class"
     
     # Load data
-    X, y = load_dataset(dataset, display=display)
+    X, y = load_data(dataset, display=display)
 
     
 

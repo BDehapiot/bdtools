@@ -422,59 +422,59 @@ if __name__ == "__main__":
     
 #%% get_skeletons() -----------------------------------------------------------
         
-    # Initialize
-    if isinstance(data, list):
-        arr = data[0]
-    else:
-        arr = data
+    # # Initialize
+    # if isinstance(data, list):
+    #     arr = data[0]
+    # else:
+    #     arr = data
     
-    t0 = time.time()
-    print("get_skeletons() : ", end="", flush=True)
+    # t0 = time.time()
+    # print("get_skeletons() : ", end="", flush=True)
     
-    skl = get_skeletons(arr, parallel=True)
+    # skl = get_skeletons(arr, parallel=True)
     
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+    # t1 = time.time()
+    # print(f"{t1 - t0:.3f}s")
     
-    # Display
-    vwr = napari.Viewer()
-    vwr.add_labels(arr, visible=1, opacity=0.5)
-    vwr.add_image(skl, blending="additive", visible=1) 
+    # # Display
+    # vwr = napari.Viewer()
+    # vwr.add_labels(arr, visible=1, opacity=0.5)
+    # vwr.add_image(skl, blending="additive", visible=1) 
     
 #%% process_masks() -----------------------------------------------------------
         
-    # Parameters
-    # method = "binary"
-    method = "edt"
-    # method = "outlines"
-    # method = "interfaces"
-    # method = "centroids"
-    # method = "skeletons"
+    # # Parameters
+    # # method = "binary"
+    # method = "edt"
+    # # method = "outlines"
+    # # method = "interfaces"
+    # # method = "centroids"
+    # # method = "skeletons"
     
-    # Initialize
-    arr = data
+    # # Initialize
+    # arr = data
     
-    t0 = time.time()
-    print("process_masks() : ", end="", flush=True)
+    # t0 = time.time()
+    # print("process_masks() : ", end="", flush=True)
     
-    prc = process_masks(
-        data, method=method,
-        edt_parameters={
-            "reference" : "outlines",
-            "mode"      : "foreground",
-            "normalize" : "object",   
-            }
-        )
+    # prc = process_masks(
+    #     data, method=method,
+    #     edt_parameters={
+    #         "reference" : "outlines",
+    #         "mode"      : "foreground",
+    #         "normalize" : "object",   
+    #         }
+    #     )
     
-    t1 = time.time()
-    print(f"{t1 - t0:.3f}s")
+    # t1 = time.time()
+    # print(f"{t1 - t0:.3f}s")
     
-    # Display
-    vwr = napari.Viewer()
-    if isinstance(arr, list):
-        idx = 1
-        vwr.add_labels(arr[idx], visible=1, opacity=0.5)
-        vwr.add_image(prc[idx], blending="additive", visible=1)
-    else:
-        vwr.add_labels(arr, visible=1, opacity=0.5)
-        vwr.add_image(prc, blending="additive", visible=1)   
+    # # Display
+    # vwr = napari.Viewer()
+    # if isinstance(arr, list):
+    #     idx = 1
+    #     vwr.add_labels(arr[idx], visible=1, opacity=0.5)
+    #     vwr.add_image(prc[idx], blending="additive", visible=1)
+    # else:
+    #     vwr.add_labels(arr, visible=1, opacity=0.5)
+    #     vwr.add_image(prc, blending="additive", visible=1)   
